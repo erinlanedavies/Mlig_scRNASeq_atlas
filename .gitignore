@@ -1,0 +1,32 @@
+# R session and history
+.Rhistory
+.RData
+.Ruserdata
+
+# RStudio
+.Rproj.user/
+*.Rproj
+
+# renv local state
+renv/library/
+renv/python/
+renv/staging/
+
+# Build artifacts
+*.tar.gz
+*.Rcheck/
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*~
+*.swp
+*.tmp
+
+# Conda env artifacts/caches
+.venv/
+__pycache__/
+*.pyc
+

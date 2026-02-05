@@ -1,0 +1,15 @@
+name: Mlig_scRNASeq_atlas
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.9
+  - numpy=1.23.5
+  - pip
+  - pybind11
+  - h5py=3.8.0
+  - leidenalg
+  - python-igraph
+  - texttable
+  - blast=2.9.0
+  - diamond
