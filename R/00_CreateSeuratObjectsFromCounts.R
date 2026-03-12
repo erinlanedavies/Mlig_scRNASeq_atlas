@@ -1,7 +1,7 @@
-## 00_QC_analysis.R
-#Author: Francisco Lobo, 04/2024
+## 00_CreateSeuratObjectsFromCounts.R
+#Author: Francisco Pereira Lobo, 02/2026
 
-# Takes as input the outputs of Starsolo and creates Seurat objects
+# Takes as input the outputs of CellBender and creates Seurat objects
 
 #installing libraries
 #BiocManager::install("speckle")

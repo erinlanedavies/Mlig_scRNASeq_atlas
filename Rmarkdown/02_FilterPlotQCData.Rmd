@@ -1,0 +1,310 @@
+---
+title: "02_FilterPlotQCData"
+author: "Francisco Pereira Lobo"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    theme: cosmo
+    code_folding: "hide"
+    fig_caption: true
+params:
+  project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas"
+  seurat_obj: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/merged_all.rds"
+  sample_id_col: "sample_id"
+  save_filtered_object: TRUE
+  out_dir: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/"
+  seed: 42
+---
+
+# Description
+
+Filter and visualize QC metrics.
+
+This report is designed to work with the outputs of **01_ComputeQCMetrics.Rmd** and performs the following tasks:
+
+- Load the merged Seurat object containing QC annotations
+- Visualize QC metrics **before filtering**
+- Filter cells flagged as outliers (`isOutlier == TRUE`)
+- Produce QC summaries and plots **after filtering**
+- Save a filtered Seurat object
+
+The goal of this report is purely **QC visualization and filtering**, keeping it logically separate from normalization or SCTransform.
+
+---
+
+# RMarkdown Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 8,
+  fig.height = 4,
+  dpi = 150
+)
+
+set.seed(params$seed)
+```
+
+---
+
+# Preparing the environment
+
+## Libraries
+
+```{r load_libraries}
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+```
+
+---
+
+# Parameters
+
+```{r print_parameters}
+str(params)
+```
+
+---
+
+# Load helper functions
+
+```{r load_functions}
+
+bootstrap <- file.path(
+  normalizePath(params$project_root, mustWork = TRUE),
+  "R",
+  "source_report_functions.R"
+)
+
+if (!file.exists(bootstrap)) {
+  stop("Bootstrap file not found at: ", bootstrap)
+}
+
+source(bootstrap)
+
+source_report_functions(
+  base_dir = params$project_root,
+  rel_dir  = "R/report_utils",
+  files    = c(
+    "io.R",
+    "seurat.R"
+  )
+)
+```
+
+---
+
+# Prepare output directory
+
+```{r prepare_output_dir}
+
+dir.create(params$out_dir, recursive = TRUE, showWarnings = FALSE)
+
+cat("Output directory:\n")
+cat(normalizePath(params$out_dir, mustWork = TRUE), "\n")
+```
+
+---
+
+# Load Seurat object
+
+```{r load_input_object}
+
+input_srt <- read_seurat_rds(params$seurat_obj)
+
+cat("Input object loaded from:\n")
+cat(params$seurat_obj, "\n\n")
+
+cat("Assays present:\n")
+print(Assays(input_srt))
+
+cat("\nDimensions (features x cells):\n")
+print(dim(input_srt))
+```
+
+---
+
+# Metadata validation
+
+```{r metadata_validation}
+
+required_cols <- c(
+  params$sample_id_col,
+  "isOutlier",
+  "nCount_RNA",
+  "nFeature_RNA",
+  "percent.mito"
+)
+
+missing_cols <- setdiff(required_cols, colnames(input_srt@meta.data))
+
+if (length(missing_cols) > 0) {
+  stop("Missing required metadata columns: ", paste(missing_cols, collapse = ", "))
+}
+```
+
+---
+
+# Input object summary
+
+```{r input_summary}
+
+summary_df <- data.frame(
+  metric = c("n_features", "n_cells", "n_samples"),
+  value = c(
+    nrow(input_srt),
+    ncol(input_srt),
+    length(unique(input_srt@meta.data[[params$sample_id_col]]))
+  )
+)
+
+kable(summary_df, caption = "Input Seurat object summary")
+```
+
+---
+
+# QC metrics before filtering
+
+```{r qc_plots_before, fig.width=12}
+
+VlnPlot(
+  input_srt,
+  features = c("nCount_RNA", "nFeature_RNA", "percent.mito"),
+  ncol = 3,
+  pt.size = 0
+)
+```
+
+```{r qc_scatter_before}
+
+FeatureScatter(input_srt, feature1 = "nCount_RNA", feature2 = "percent.mito")
+FeatureScatter(input_srt, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+```
+
+---
+
+# Apply QC filtering
+
+```{r filter_cells}
+
+cells_before <- ncol(input_srt)
+
+srt_obj <- subset(
+  input_srt,
+  subset = isOutlier == FALSE
+)
+
+cells_after <- ncol(srt_obj)
+```
+
+---
+
+# Filtering summary
+
+```{r filtering_summary}
+
+filtering_df <- data.frame(
+  step = c("Before filtering", "After filtering"),
+  n_cells = c(cells_before, cells_after)
+)
+
+filtering_df$percent_retained <- round(
+  100 * filtering_df$n_cells / filtering_df$n_cells[1],
+  2
+)
+
+kable(filtering_df, caption = "Effect of QC filtering on cell counts")
+```
+
+---
+
+# Filtering summary per sample
+
+```{r per_sample_filtering}
+
+sample_counts_before <- input_srt@meta.data %>%
+  count(.data[[params$sample_id_col]], name = "cells_before")
+
+sample_counts_after <- srt_obj@meta.data %>%
+  count(.data[[params$sample_id_col]], name = "cells_after")
+
+sample_filter_df <- left_join(
+  sample_counts_before,
+  sample_counts_after,
+  by = params$sample_id_col
+)
+
+sample_filter_df$percent_retained <- round(
+  100 * sample_filter_df$cells_after / sample_filter_df$cells_before,
+  2
+)
+
+kable(sample_filter_df, caption = "Per-sample cell retention after QC filtering")
+```
+
+---
+
+# QC metrics after filtering
+
+```{r qc_plots_after, fig.width=12}
+
+VlnPlot(
+  srt_obj,
+  features = c("nCount_RNA", "nFeature_RNA", "percent.mito"),
+  ncol = 3,
+  pt.size = 0
+)
+```
+
+```{r qc_scatter_after}
+
+FeatureScatter(srt_obj, feature1 = "nCount_RNA", feature2 = "percent.mito")
+FeatureScatter(srt_obj, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+```
+
+---
+
+# Save filtered Seurat object
+
+```{r save_filtered_object}
+
+filtered_file <- file.path(params$out_dir, "srt_obj_filtered.rds")
+
+if (isTRUE(params$save_filtered_object)) {
+  saveRDS(srt_obj, file = filtered_file)
+  cat("Filtered Seurat object saved to:\n", filtered_file, "\n")
+}
+```
+
+---
+
+# Final object summary
+
+```{r final_summary}
+
+final_df <- data.frame(
+  metric = c("n_features", "n_cells"),
+  value = c(
+    nrow(srt_obj),
+    ncol(srt_obj)
+  )
+)
+
+kable(final_df, caption = "Filtered Seurat object summary")
+```
+
+---
+
+# Session info
+
+```{r session_info}
+sessionInfo()
+```

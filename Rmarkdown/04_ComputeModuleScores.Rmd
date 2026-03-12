@@ -1,0 +1,601 @@
+---
+title: "02_IntegrateSeurat"
+author: "Francisco Pereira Lobo"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    theme: cosmo
+    code_folding: "hide"
+    fig_caption: true
+params:
+  project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas"
+  seurat_obj: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/merged_all.rds"
+  sample_id_col: "sample_id"
+  save_intermediate_files: TRUE # save intermediate files
+  
+  # path to table with cell cycle genes
+  cell_cycle_gene_table: "../data/metadata/cell_cycle_genes.tsv"
+
+  # Output directory
+  out_dir: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/"
+
+  seed: 42
+---
+
+# Description
+
+Integrate
+
+
+This template is designed to work with the outputs of the previous step (00_CreateSeuratFromCounts), which can produce:
+- a list RDS file `seurat_objects_by_sample.rds`, and/or  
+- per sample Seurat objects `<sample_id>.rds` plus a sample metadata table.
+
+## RMarkdown Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 8,
+  fig.height = 4,
+  dpi = 150
+)
+
+set.seed(params$seed)
+
+```
+
+## Preparing the environment
+
+### Loading libraries
+
+```{r load_libraries, echo = TRUE}
+
+library(Seurat)
+library(sctransform)
+library(scCustomize)
+library(DT)
+library(stringr)
+library(ggplot2)
+
+#library(parallel)
+#library(future)
+#library(future.apply)
+
+```
+
+
+### Parameters
+
+Parameters used to generate this report:
+
+``` {r print_parameters, echo=TRUE}
+
+params <- list(
+  project_root = "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas",
+  seurat_obj = "...",
+  sample_id_col = "sample_ID",
+  cell_cycle_gene_table = "...",
+  seurat_out_obj = "...",
+  seed = 42,
+  out_dir = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/"
+)
+
+str(params)
+
+```
+
+## Environment configuration
+
+```{r load_functions, echo=TRUE}
+
+# Source helper functions relative to the project root
+
+bootstrap <- file.path(
+  normalizePath(params$project_root, mustWork = TRUE),
+  "R",
+  "source_report_functions.R"
+)
+
+if (!file.exists(bootstrap)) {
+  stop("Bootstrap file not found at: ", bootstrap)
+}
+
+source(bootstrap)
+
+source_report_functions(
+  base_dir = params$project_root,
+  rel_dir  = "R/report_utils",
+  files    = c(
+    "io.R",
+    "seurat.R"
+  )
+)
+
+```
+
+```{r process_seurat_obj, echo=TRUE}
+
+# Load merged object
+#srt_obj <- read_seurat_rds(params$seurat_obj)
+
+# Remove outliers
+#srt_obj <- subset(x = srt_obj, isOutlier == FALSE)
+
+# Join layers
+#srt_obj <- JoinLayers(srt_obj)
+
+# Normalize
+#srt_obj <- NormalizeData(srt_obj,
+#                         assay = "RNA",
+#                         normalization.method = "LogNormalize",
+#                         scale.factor = 10000)
+# Scale
+#srt_obj <- ScaleData(srt_obj,
+#                     assay = "RNA",
+#                     vars.to.regress = "percent.mito"
+#)
+
+if (params$save_intermediate_files == TRUE) {
+#  saveRDS(srt_obj, file = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/srt_obj_scaled_tmp.rds")
+}
+
+#srt_obj <- readRDS(file = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/srt_obj_scaled_tmp.rds")
+
+
+# Load cell cycle table and derive gene sets
+#cell_cycle_df <- read_cell_cycle_table(params$cell_cycle_gene_table)
+#cc_feats <- get_cell_cycle_features(cell_cycle_df)
+#
+# Score cell cycle
+#srt_obj <- CellCycleScoring(object = srt_obj,
+#                            s.features = cc_feats$s_features,
+#                            g2m.features = cc_feats$g2m_features)
+
+# Split by sample and run SCT per sample
+
+#sample_list <- split_seurat(srt_obj, split_by = params$sample_id_col)
+
+#sample_list <- lapply(X = sample_list, 
+#                      FUN = SCTransform,
+#                      vst.flavor = "v2",
+#                      variable.features.n = 10000,
+#                      method = "glmGamPoi",
+#                      vars.to.regress = c("percent.mito"),
+#                      return.only.var.genes = FALSE)
+
+# sample_list <- sct_transform_list(
+#   sample_list,
+#   method = "glmGamPoi",
+# #  vars_to_regress = c("percent.mito", "S.Score", "G2M.Score"),
+#   vars_to_regress = c("percent.mito"),
+#   return_only_var_genes = FALSE
+# )
+
+if (params$save_intermediate_files == TRUE) {
+#  saveRDS(sample_list, file = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/sct_list_v2_tmp.rds")
+}
+
+sample_list <- readRDS(file = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/sct_list_v2_tmp.rds")
+
+#srt_obj <- merge(x = sample_list[[1]], y = sample_list[-1])
+
+if (params$save_intermediate_files == TRUE) {
+#  saveRDS(srt_obj, file = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/srt_obj_norm_scaled_RNA_plus_SCT_v2.rds")
+}
+
+#srt_obj <- readRDS(file = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/srt_obj_norm_scaled_RNA_plus_SCT_v2.rds")
+
+#gc()
+
+```
+
+## Integration by stage
+
+Now we integrate each stage individually to see how the major cell types (based on module scores) will group
+
+```{r integrate_stages, echo = TRUE}
+
+# Integration features
+features <- SelectIntegrationFeatures(object.list = sample_list, nfeatures = 3000)
+
+# PCA
+sample_list <- lapply(
+  X = sample_list,
+  FUN = function(x) {
+    x <- RunPCA(x, verbose = FALSE, features = features)
+    return(x)
+  }
+)
+
+gc()
+
+# integrate by stage
+stages <- c("0-1_days", "3_days", "7_days", "Adult")
+
+stage_obj_list <- list()
+
+# integrate each stage
+for (stage_id in stages) {
+  print(paste0("Integrating stage ", stage_id))
+  
+  # Subset by stage
+  filtered_list <- Filter(
+    function(obj) {
+      # Extract the metadata column
+      stage_values <- obj@meta.data$Stage
+      
+      # Since all cells share the same value, check the first one
+      stage_values[1] == stage_id
+    },
+    sample_list
+  )
+  
+#  features <- SelectIntegrationFeatures(object.list = filtered_list, nfeatures = 3000)
+  
+  # filtered_list <- lapply(
+  #   X = filtered_list,
+  #   FUN = function(x) {
+  #     #    x <- SCTransform(x, verbose = FALSE)   # avoid regressing cell cycle here unless you are sure
+  #     x <- RunPCA(x, verbose = FALSE, features = features)
+  #     return(x)
+  #   }
+  # )
+  
+  options(future.globals.maxSize = 300 * 1024^3) # Sets the limit to 300 GiB
+  filtered_list <- PrepSCTIntegration(object.list = filtered_list, anchor.features = features, verbose = FALSE)
+
+  gc()
+
+  anchors <- FindIntegrationAnchors(
+    object.list = filtered_list,
+    normalization.method = "SCT",
+    anchor.features = features,
+    reduction = "rpca",
+    dims = 1:40
+  )
+
+  gc()
+
+# ----------------------------
+# 3) Integrate, then continue standard downstream
+# ----------------------------
+  atlas_int <- IntegrateData(
+    anchorset = anchors,
+    normalization.method = "SCT",
+    dims = 1:40
+  )
+
+  gc()
+
+  DefaultAssay(atlas_int) <- "integrated"
+  atlas_int <- RunPCA(atlas_int, npcs = 40, verbose = FALSE)
+  atlas_int <- RunUMAP(atlas_int, reduction = "pca", dims = 1:40)
+  atlas_int <- FindNeighbors(atlas_int, reduction = "pca", dims = 1:40)
+  atlas_int <- FindClusters(atlas_int, resolution = c(0.6, 1.2, 1.8, 2.4, 4), algorithm = 4)
+  
+  stage_name <- str_replace(stage_id, pattern = "-", replacement = "_")
+  
+  stage_obj_list[stage_name] <- atlas_int
+  
+  out_file_name <- paste0(params$out_dir, "srt_", stage_name, "_integrated.rds")
+  print(paste0("Saving file ", out_file_name))  
+  saveRDS(atlas_int, file = out_file_name)  
+  print("Done")
+  gc()
+}
+
+out_file_name <- paste0(params$out_dir, "srt_list_integrated.rds")
+saveRDS(stage_obj_list, file = out_file_name)  
+
+out_file_name <- paste0(params$out_dir, "srt_list_integration_features.rds")
+saveRDS(features, file = out_file_name)  
+
+```
+## Add module scores from the literature
+This step adds module scores for major cell types. All were gathered from the literature and have been validated from M. lignano, with the exception of epidermal markers, which were selected from S. polychroa and mapped to M. lignano homologs by blast (https://doi.org/10.1126/science.aaq1736).
+
+### Import table of marker genes
+```{r import_module_score_table, echo = TRUE}
+
+marker_genes <- read.table("~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/data/metadata/literature_marker_genes.tsv", sep = "\t", header = TRUE, quote = "")
+
+# Seurat doesn't allow underscores in gene symbols and has replaced them in the object, so we need to replace them here as well
+marker_genes$Gene_ID <- str_replace(marker_genes$Gene_ID, pattern = "_", replacement = "-")
+
+datatable(marker_genes)
+
+```
+
+### Add module scores
+```{r add_module_scores, echo = TRUE}
+
+#in_file_name <- paste0(params$out_dir, "srt_list_integrated.rds")
+
+#stage_obj_list <- readRDS(file = in_file_name)  
+
+anchor_cell_of_adhesive_organ <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "anchor_cell_of_adhesive_organ"]
+cement_gland_cell <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "cement_gland_cell"]
+epidermal_secretory_cell <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "epidermal_secretory_cell"]
+female_antrum <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "female_antrum"]
+female_germline_ovary <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "female_germline_ovary"]
+gut <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "gut"]
+gut_specialized_cell <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "gut_specialized_cell"]
+male_germline_testis <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "male_germline_testis"]
+muscle <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "muscle"]
+nervous_system <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "nervous_system"]
+prostate <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "prostate"]
+rhabdite <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "rhabdite-containing_cell"]
+secretory_cell_of_adhesive_organ <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "secretory_cell_of_adhesive_organ"]
+stem_cells_progenitors <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "stem_cells_progenitors"]
+epidermal <- marker_genes$Gene_ID[marker_genes$Cell_tissue_type == "epidermal"]
+
+marker_genes_list <- list(anchor_cell_of_adhesive_organ,
+                          cement_gland_cell,
+                          epidermal_secretory_cell,
+                          female_antrum,
+                          female_germline_ovary,
+                          gut,
+                          gut_specialized_cell,
+                          male_germline_testis,
+                          muscle,
+                          nervous_system,
+                          prostate,
+                          rhabdite,
+                          secretory_cell_of_adhesive_organ,
+                          stem_cells_progenitors,
+                          epidermal)
+
+names(marker_genes_list) <- c("anchor_cell_of_adhesive_organ",
+                              "cement_gland_cell",
+                              "epidermal_secretory",
+                              "female_antrum",
+                              "female_germline_ovary",
+                              "gut",
+                              "gut_specialized",
+                              "male_germline_testis",
+                              "muscle",
+                              "nervous_system",
+                              "prostate",
+                              "rhabdite",
+                              "secretory_cell_of_adhesive_organ",
+                              "progenitor",
+                              "epidermal")
+#gc()
+
+#stage_obj_list <- lapply(stage_obj_list, function(obj) {
+#  obj <- JoinLayers(obj, assay = "RNA")
+#  DefaultAssay(obj) <- "RNA"
+#  obj
+#})
+
+gc()
+
+#stage_obj_list <- lapply(stage_obj_list, function(obj) {
+#  obj <- add_module_scores(obj, gene_lists = marker_genes_list)
+#  obj
+#})
+
+#gc()
+
+#out_file_name <- paste0(params$out_dir, "srt_list_integrated.rds")
+#saveRDS(stage_obj_list, file = out_file_name)  
+
+gc()
+
+```
+
+### Visualize module scores by stage
+
+```{r plot_module_scores, echo = TRUE}
+
+## 0-1 days
+p1 <- FeaturePlot_scCustom(stage_obj_list[["0_1_days"]], features = names(marker_genes_list)) + ggtitle("0-1 days")
+
+## 3 days
+p2 <- FeaturePlot_scCustom(stage_obj_list[["3_days"]], features = names(marker_genes_list)) + ggtitle("3 days")
+
+## 7 days
+p3 <- FeaturePlot_scCustom(stage_obj_list[["7_days"]], features = names(marker_genes_list)) + ggtitle("7 days")
+
+## Adult
+p4 <- FeaturePlot_scCustom(stage_obj_list[["Adult"]], features = names(marker_genes_list)) + ggtitle("Adult")
+
+print(p1)
+print(p2)
+print(p3)
+print(p4)
+
+```
+
+### Integrate all samples using adult as anchor
+
+```{r anchor_integration, echo=TRUE}
+
+# Indices of the adult replicates in obj_list (these will be the reference)
+adult_idx <- which(names(sample_list) %in% c("2_Adult_Unsorted", "2_Adult_Unsorted_DASH", "7_Sorted_Adult"))
+
+# ----------------------------
+# 1) Preprocess (SCT workflow, recommended for integration)
+# ----------------------------
+sample_list <- lapply(
+  X = sample_list,
+  FUN = function(x) {
+#    x <- SCTransform(x, verbose = FALSE)   # avoid regressing cell cycle here unless you are sure
+    x <- RunPCA(x, verbose = FALSE)
+    return(x)
+  }
+)
+
+# ----------------------------
+# 2) Find anchors using adults as the reference
+#    Use RPCA to be more conservative (often helps avoid over-merging)
+# ----------------------------
+features <- SelectIntegrationFeatures(object.list = sample_list, nfeatures = 3000)
+
+options(future.globals.maxSize = 300 * 1024^3) # Sets the limit to 300 GiB
+
+sample_list <- PrepSCTIntegration(object.list = sample_list, anchor.features = features, verbose = FALSE)
+
+gc()
+
+anchors <- FindIntegrationAnchors(
+  object.list = sample_list,
+  normalization.method = "SCT",
+  anchor.features = features,
+  reference = adult_idx,     # key line: non-adults are anchored onto adults
+  reduction = "rpca",        # conservative anchors
+  dims = 1:40
+)
+
+gc()
+
+# ----------------------------
+# 3) Integrate, then continue standard downstream
+# ----------------------------
+atlas_int <- IntegrateData(
+  anchorset = anchors,
+  normalization.method = "SCT",
+  dims = 1:40
+)
+
+gc()
+
+DefaultAssay(atlas_int) <- "integrated"
+atlas_int <- RunPCA(atlas_int, npcs = 40, verbose = FALSE)
+atlas_int <- RunUMAP(atlas_int, reduction = "pca", dims = 1:40)
+atlas_int <- FindNeighbors(atlas_int, reduction = "pca", dims = 1:40)
+atlas_int <- FindClusters(atlas_int, resolution = c(0.6, 1.2, 1.8, 2.4, 4), algorithm = 4)
+
+out_file_name <- paste0(params$out_dir, "srt_integrated_all.rds")
+saveRDS(atlas_int, file = out_file_name)  
+
+gc()
+
+```
+
+```{r visualize_integration, echo=TRUE}
+# Switch back to RNA:
+DefaultAssay(atlas_int) <- "RNA"
+atlas_int <- JoinLayers(atlas_int, assay = "RNA")
+atlas_int <- add_module_scores(atlas_int, gene_lists = marker_genes_list)
+p_module_integrated <- FeaturePlot_scCustom(atlas_int, features = names(marker_genes_list))
+p_by_stage <- DimPlot_scCustom(atlas_int, group.by = "Stage")
+p_split_by_stage_group_by_sample <- DimPlot_scCustom(atlas_int, split.by = "Stage", group.by = "sample_id")
+
+p_module_integrated_tmp <- FeaturePlot_scCustom(atlas_int, features = c("male_germline_testis", "female_germline_ovary"))
+
+saveRDS(atlas_int, file = out_file_name)
+
+```
+
+```{}
+
+DefaultAssay(atlas_int) <- "RNA"
+
+gc()
+
+rm(obj_list)
+
+gc()
+
+atlas_int <- JoinLayers(atlas_int)
+
+cols_to_keep <- c("orig.ident",
+                  "nCount_RNA",
+                  "nFeature_RNA",
+                  "sample_ID",
+                  "sample_type",
+                  "percent.mito",
+                  "nCount_SCT",
+                  "nFeature_SCT",
+                  "S.Score",
+                  "G2M.Score",
+                  "Phase",
+                  "nCount_integrated",
+                  "nFeature_integrated",
+                  "integrated_snn_res.0.2",
+                  "integrated_snn_res.0.4",
+                  "integrated_snn_res.0.6",
+                  "integrated_snn_res.0.8",
+                  "integrated_snn_res.1",
+                  "integrated_snn_res.1.2",
+                  "integrated_snn_res.1.4",
+                  "integrated_snn_res.1.6",
+                  "integrated_snn_res.1.8",
+                  "integrated_snn_res.2",
+                  "integrated_snn_res.3",
+                  "integrated_snn_res.4")
+
+seurat_integrated_final@meta.data <- seurat_integrated_final@meta.data[, cols_to_keep, drop = FALSE]
+
+Assays(seurat_integrated_final)
+
+DefaultAssay(seurat_integrated_final) <- "RNA"
+
+# Save final object
+save_rds(seurat_integrated, params$seurat_out_obj)
+cat("Saved integrated object to:", params$seurat_out_obj, "\n")
+
+
+```
+
+
+```{merge_srt_obj_assays}
+
+# 2. Merge them in one go
+seurat_integrated <- merge(
+  x            = cleaned_timepoints[[1]],
+  y            = cleaned_timepoints[-1],
+  add.cell.ids = names(cleaned_timepoints),
+  project      = "ReplicateIntegration"
+)
+
+# 3. Re‐run scaling, PCA & UMAP on the merged “integrated” assay
+
+DefaultAssay(seurat_integrated) <- "integrated"
+seurat_integrated <- FindVariableFeatures(seurat_integrated)
+seurat_integrated <- ScaleData(seurat_integrated, verbose = FALSE)
+seurat_integrated <- RunPCA(seurat_integrated, verbose = FALSE)
+seurat_integrated <- RunUMAP(seurat_integrated, dims = 1:30)
+
+# 5. Merge all time‐point–integrated objects in one shot
+seurat_integrated <- merge(
+  x            = integrated_timepoints[[1]],
+  y            = integrated_timepoints[-1],
+  add.cell.ids = names(integrated_timepoints),
+  project      = "Timepoint_Replicate_Integration"
+)
+
+
+
+gc()
+
+
+```
+
+```{r process_integrated_srt_obj, echo=TRUE}
+seurat_integrated <- FindNeighbors(seurat_integrated,
+                                   reduction = "pca",
+                                   dims = 1:40,
+                                   verbose = FALSE)
+
+seurat_integrated <- FindClusters(seurat_integrated,
+                                  resolution = c(0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2, 3, 4),
+                                  algorithm = 4,
+                                  random.seed = 42)
+
+saveRDS(seurat_integrated_final, file = "objs/seurat_integrated_assay_DASH.rds")
+
+```
+
+```{r session_info, echo=TRUE}
+session
+
+```

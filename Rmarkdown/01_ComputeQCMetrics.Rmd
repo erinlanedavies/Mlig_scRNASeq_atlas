@@ -1,0 +1,320 @@
+---
+title: "01_ComputeQCMetrics"
+author: "Francisco Pereira Lobo"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    theme: cosmo
+    code_folding: "hide"
+    fig_caption: true
+params:
+  
+  #path to project
+  project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas"
+
+  # How to load input objects
+  use_seurat_list: true                    # TRUE: read list RDS; FALSE: load individual RDS using sample table
+  seurat_list_rds: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/seurat_objects_by_sample.rds"
+  
+  # If use_seurat_list == FALSE, use these to load objects from disk
+  sample_table: "" # Same table used in 00_CreateSeuratFromCounts
+  sample_id_col: ""
+  seurat_objects_dir: "" # Directory containing <sample_id>.rds files
+  
+  # QC parameters
+  mito_genes: !expr character(0)
+  qc_proxy_vars: !expr c("percent.mito", "nCount_RNA", "nFeature_RNA")
+  nmad_lower: !expr c(Inf, 2, 2)
+  nmad_upper: !expr c(2, 2, 2)
+
+#  qc_proxy_vars: !r c("percent.mito", "nCount_RNA", "nFeature_RNA")
+#  nmad_lower:    !r c(Inf, 2, 2)          # lower nmads for qc_proxy_vars (percent.mito, nCount_RNA, nFeature_RNA)
+#  nmad_upper:    !r c(2, 2, 2)            # upper nmads for qc_proxy_vars
+  qc_log: FALSE
+
+  # Doublet detection
+  run_doublet_detection: FALSE
+  doublet_diet_seurat: TRUE                # if TRUE, remove SCT assay etc after DoubletFinder
+
+  # Merged output
+  merged_raw_rds: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/merged_all.rds"
+
+  seed: 42
+---
+
+# Description
+
+Compute QC metrics and doublet status for a collection of Seurat objects, then merge them into a single object for downstream analyses.
+
+This template is designed to work with the outputs of the previous step (00_CreateSeuratFromCounts), which can produce:
+- a list RDS file `seurat_objects_by_sample.rds`, and/or  
+- per sample Seurat objects `<sample_id>.rds` plus a sample metadata table.
+
+## RMarkdown Setup
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 8,
+  fig.height = 4,
+  dpi = 150
+)
+
+set.seed(params$seed)
+```
+
+## Preparing the environment
+
+### Loading libraries
+
+```{r load_libraries, echo = TRUE}
+
+library(Seurat)
+library(DoubletFinder)
+library(sctransform)
+library(scCustomize)
+library(speckle)
+library(scater)
+library(dplyr)
+
+```
+
+
+### Parameters
+
+Parameters used to generate this report:
+
+``` {r print_parameters, echo=TRUE}
+
+str(params)
+
+```
+
+
+### Functions
+
+```{r load_functions, echo=TRUE}
+
+# Source helper functions relative to the project root
+
+bootstrap <- file.path(
+  normalizePath(params$project_root, mustWork = TRUE),
+  "R",
+  "source_report_functions.R"
+)
+
+if (!file.exists(bootstrap)) {
+  stop("Bootstrap file not found at: ", bootstrap)
+}
+
+source(bootstrap)
+
+source_report_functions(
+  base_dir = params$project_root,
+  rel_dir  = "R/report_utils",
+  files    = c("qc.R")
+)
+
+```
+
+## Load Seurat objects
+
+We support two input modes:
+
+- Use a list RDS containing all Seurat objects, as produced by 00_CreateSeuratFromCounts.
+
+- Load individual Seurat RDS files using the sample table and seurat_objects_dir.
+
+```{r load_seurat_objs, echo=TRUE}
+
+# Writing
+seurat_list <- list()
+
+if (isTRUE(params$use_seurat_list)) {
+  
+  cat("Mode 1: load list RDS\n")
+  
+  if (!file.exists(params$seurat_list_rds)) {
+    stop("use_seurat_list is TRUE but seurat_list_rds does not exist: ",
+         params$seurat_list_rds)
+  }
+  seurat_list <- readRDS(params$seurat_list_rds)
+  if (!is.list(seurat_list) || length(seurat_list) == 0) {
+    stop("seurat_list_rds does not contain a nonempty list.")
+  }
+  cat("Loaded Seurat object list from:", params$seurat_list_rds, "\n")
+  cat("Samples:", paste(names(seurat_list), collapse = ", "), "\n")
+  
+} else {
+  
+  cat("Mode 2: load per sample RDS using the sample table\n")
+  
+  sample_table <- read.table(
+    file = params$sample_table,
+    sep = params$sample_table_sep,
+    header = TRUE,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  
+  cat("Sample table loaded with", nrow(sample_table), "rows.\n")
+  
+  sample_id_col <- params$sample_id_col
+  if (is.null(sample_id_col) || !nzchar(sample_id_col)) {
+    stop("params$sample_id_col is empty or NULL.")
+  }
+  if (!sample_id_col %in% colnames(sample_table)) {
+    stop("sample_id_col '", sample_id_col, "' not found in sample_table.")
+  }
+  
+  sample_ids <- as.character(sample_table[[sample_id_col]])
+  
+  if (!dir.exists(params$seurat_objects_dir)) {
+    stop("seurat_objects_dir does not exist: ", params$seurat_objects_dir)
+  }
+  
+  for (sid in sample_ids) {
+    rds_file <- file.path(params$seurat_objects_dir, paste0(sid, ".rds"))
+    if (!file.exists(rds_file)) {
+      stop("RDS file for sample '", sid, "' not found at: ", rds_file)
+    }
+    cat("Loading Seurat object for sample:", sid, "from", rds_file, "\n")
+    srt <- readRDS(rds_file)
+    seurat_list[[sid]] <- srt
+  }
+}
+
+cat("Basic summary\n")
+
+summary_df <- data.frame(
+  sample_id = names(seurat_list),
+  n_features = sapply(seurat_list, nrow),
+  n_cells = sapply(seurat_list, ncol),
+  stringsAsFactors = FALSE
+)
+summary_df
+
+```
+
+## Compute QC metrics
+
+```{r compute_QC_metrics}
+
+cat("Compute QC metrics (isOutlier) for each sample\n")
+
+QC_params <- list(
+  QC_proxy_vars = params$qc_proxy_vars,
+  nmad_lower = params$nmad_lower,
+  nmad_upper = params$nmad_upper,
+  log = params$qc_log
+)
+
+for (sid in names(seurat_list)) {
+  cat("\nRunning QCReportFilter on sample:", sid, "\n")
+  seurat_list[[sid]] <- QCReportFilter(
+    srt_obj = seurat_list[[sid]],
+    params = QC_params
+  )
+}
+
+
+if (isTRUE(params$run_doublet_detection)) {
+  cat("Doublet detection using DoubletFinder\n")
+  
+  doublet_detection_params <- list(
+    diet_seurat = params$doublet_diet_seurat
+  )
+  
+  for (sid in names(seurat_list)) {
+    cat("\nRunning DoubletDetection on sample:", sid, "\n")
+    seurat_list[[sid]] <- DoubletDetection(
+      srt_obj = seurat_list[[sid]],
+      params = doublet_detection_params
+    )
+  }
+  
+} else {
+  cat("run_doublet_detection is FALSE; skipping DoubletFinder.\n")
+}
+
+cat("Save per sample Seurat objects (updated)\n")
+
+```
+
+## Saving seurat objects
+
+The seurat objects now have QC data that can be visualized with 03_QCReport.Rmd
+
+```{r save_updated_seurat_objs, echo=TRUE}
+
+# Reuse seurat_objects_dir if available; otherwise derive from merged_raw_rds directory
+
+out_dir <- if (!is.null(params$seurat_objects_dir) && nzchar(params$seurat_objects_dir)) {
+  params$seurat_objects_dir
+} else {
+  dirname(params$merged_raw_rds)
+}
+
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+for (sid in names(seurat_list)) {
+  out_file <- file.path(out_dir, paste0(sid, ".rds"))
+  saveRDS(seurat_list[[sid]], file = out_file)
+  cat("Saved updated Seurat object for sample", sid, "to", out_file, "\n")
+}
+
+if (!is.null(params$merged_raw_rds)) {
+
+cat("Merging Seurat objects\n")
+
+if (length(seurat_list) == 0) {
+  stop("No Seurat objects in seurat_list; cannot merge.")
+}
+
+samples <- names(seurat_list)
+
+if (length(samples) == 1) {
+  srt_obj <- seurat_list[[1]]
+  cat("Only one sample present; merged object will be this sample.\n")
+} else {
+  
+#  merge() accepts a list in y and add.cell.ids
+  srt_obj <- merge(
+    x = seurat_list[[1]],
+    y = seurat_list[-1],
+    add.cell.ids = samples,
+    project = "scRNA_Seq_project"
+  )
+}
+
+cat("Merged object dimensions (features x cells):\n")
+print(dim(srt_obj))
+
+# Create filtered version based on isOutlier if available
+
+cat("Saving merged objects\n")
+
+dir.create(dirname(params$merged_raw_rds), recursive = TRUE, showWarnings = FALSE)
+
+saveRDS(srt_obj, file = params$merged_raw_rds)
+
+cat("Saved merged object to :", params$merged_raw_rds, "\n")
+
+}
+
+```
+
+## Session info
+
+```{r session_info, echo=TRUE}
+
+sessionInfo()
+
+```
