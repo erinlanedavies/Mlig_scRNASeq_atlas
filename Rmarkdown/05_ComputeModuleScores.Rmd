@@ -1,0 +1,448 @@
+---
+title: "05_ComputeModuleScores"
+author: "Francisco Pereira Lobo"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    theme: cosmo
+    code_folding: "hide"
+    fig_caption: true
+params:
+  project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas"
+  stage_integrated_list_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/srt_list_integrated.rds"
+  integrated_atlas_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/srt_integrated_all.rds"
+  marker_gene_table: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/data/metadata/literature_marker_genes.tsv"
+  sample_id_col: "sample_id"
+  stage_col: "Stage"
+  save_intermediate_files: TRUE
+  save_figures: TRUE
+  figure_dpi: 600
+  dotplot_resolution: 1.8
+  out_dir: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/"
+  palette: ""
+  seed: 42
+---
+
+# Description
+
+Add module scores for major cell types to:
+
+- the stage-specific integrated Seurat objects generated in the previous step
+- the adult-anchored integrated Seurat object
+
+This report also generates summary tables and publication-ready figures, including:
+
+- feature plots for module scores
+- dot plots for module scores
+
+If cached objects with module scores already exist, they are loaded instead of recomputing them from scratch.
+
+## RMarkdown Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 10,
+  fig.height = 6,
+  dpi = 150
+)
+
+set.seed(params$seed)
+```
+
+## Preparing the environment
+
+### Loading libraries
+
+```{r load_libraries, echo=TRUE}
+library(Seurat)
+library(sctransform)
+library(scCustomize)
+library(DT)
+library(stringr)
+library(ggplot2)
+library(dplyr)
+library(knitr)
+library(patchwork)
+```
+
+### Parameters
+
+Parameters used to generate this report:
+
+```{r print_parameters, echo=TRUE}
+str(params)
+```
+
+### Load helper functions
+
+```{r load_functions, echo=TRUE}
+bootstrap <- file.path(
+  normalizePath(params$project_root, mustWork = TRUE),
+  "R",
+  "source_report_functions.R"
+)
+
+if (!file.exists(bootstrap)) {
+  stop("Bootstrap file not found at: ", bootstrap)
+}
+
+source(bootstrap)
+
+source_report_functions(
+  base_dir = params$project_root,
+  rel_dir  = "R/report_utils",
+  files    = c(
+    "io.R",
+    "seurat.R",
+    "module_score_helpers.R"
+  )
+)
+```
+
+### Prepare output directories
+
+```{r prepare_output_dir, echo=TRUE}
+dir.create(params$out_dir, recursive = TRUE, showWarnings = FALSE)
+
+figure_dir <- file.path(params$out_dir, "module_score_figures")
+dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
+
+cat("Output directory:\n")
+cat(normalizePath(params$out_dir, mustWork = TRUE), "\n\n")
+
+cat("Figure directory:\n")
+cat(normalizePath(figure_dir, mustWork = TRUE), "\n")
+```
+
+## Load integrated objects
+
+```{r load_objects, echo=TRUE}
+if (!file.exists(params$stage_integrated_list_file)) {
+  stop("stage_integrated_list_file not found: ", params$stage_integrated_list_file)
+}
+if (!file.exists(params$integrated_atlas_file)) {
+  stop("integrated_atlas_file not found: ", params$integrated_atlas_file)
+}
+
+stage_obj_list <- readRDS(params$stage_integrated_list_file)
+atlas_int <- readRDS(params$integrated_atlas_file)
+
+cat("Loaded", length(stage_obj_list), "stage-specific integrated objects.\n")
+cat("Integrated atlas dimensions (features x cells):\n")
+print(dim(atlas_int))
+```
+
+## Import marker genes
+
+```{r import_module_score_table, echo=TRUE}
+marker_genes <- read_marker_table(params$marker_gene_table)
+
+datatable(marker_genes, options = list(pageLength = 10, scrollX = TRUE))
+```
+
+```{r marker_summary_table, echo=TRUE}
+marker_summary <- summarize_marker_table(marker_genes)
+
+kable(marker_summary, caption = "Number of marker genes per literature-defined cell/tissue type")
+```
+
+```{r build_marker_lists, echo=TRUE}
+marker_genes_list <- build_marker_gene_list(marker_genes)
+
+marker_list_summary <- data.frame(
+  module = names(marker_genes_list),
+  n_marker_genes = vapply(marker_genes_list, length, integer(1)),
+  stringsAsFactors = FALSE
+) %>%
+  arrange(desc(n_marker_genes), module)
+
+kable(marker_list_summary, caption = "Module score gene lists used in this report")
+```
+
+## Marker overlap diagnostics
+
+```{r overlap_integrated_atlas, echo=TRUE}
+atlas_overlap <- module_score_overlap_table(
+  obj = atlas_int,
+  gene_lists = marker_genes_list,
+  object_name = "integrated_atlas"
+)
+
+kable(atlas_overlap, caption = "Marker overlap between literature gene lists and the integrated atlas")
+```
+
+```{r overlap_stage_objects, echo=TRUE}
+stage_overlap <- bind_rows(
+  lapply(names(stage_obj_list), function(nm) {
+    module_score_overlap_table(
+      obj = stage_obj_list[[nm]],
+      gene_lists = marker_genes_list,
+      object_name = nm
+    )
+  })
+)
+
+kable(stage_overlap, caption = "Marker overlap between literature gene lists and each stage-specific integrated object")
+```
+
+## Add module scores
+
+```{r add_module_scores, echo=TRUE}
+stage_scores_file <- file.path(params$out_dir, "srt_list_integrated_module_scores.rds")
+atlas_scores_file <- file.path(params$out_dir, "srt_integrated_all_module_scores.rds")
+
+if (file.exists(stage_scores_file) && file.exists(atlas_scores_file)) {
+  stage_obj_list <- readRDS(stage_scores_file)
+  atlas_int <- readRDS(atlas_scores_file)
+  cat("Reusing cached module score objects:\n")
+  cat("  ", stage_scores_file, "\n")
+  cat("  ", atlas_scores_file, "\n")
+} else {
+  stage_obj_list <- lapply(stage_obj_list, function(obj) {
+    add_module_scores_named(
+      obj = obj,
+      gene_lists = marker_genes_list,
+      assay = "RNA",
+      prefix = "MS_",
+      seed = params$seed
+    )
+  })
+
+  atlas_int <- add_module_scores_named(
+    obj = atlas_int,
+    gene_lists = marker_genes_list,
+    assay = "RNA",
+    prefix = "MS_",
+    seed = params$seed
+  )
+
+  if (isTRUE(params$save_intermediate_files)) {
+    saveRDS(stage_obj_list, file = stage_scores_file)
+    saveRDS(atlas_int, file = atlas_scores_file)
+  }
+}
+```
+
+```{r module_score_columns, echo=TRUE}
+module_score_cols <- grep("^MS_", colnames(atlas_int@meta.data), value = TRUE)
+
+module_score_table <- data.frame(
+  module_score_column = module_score_cols,
+  stringsAsFactors = FALSE
+)
+
+kable(module_score_table, caption = "Module score columns added to the Seurat metadata")
+```
+
+## Stage-specific module score summaries
+
+```{r stage_module_score_summary, echo=TRUE}
+stage_module_summary <- bind_rows(lapply(names(stage_obj_list), function(nm) {
+  obj <- stage_obj_list[[nm]]
+  cols <- grep("^MS_", colnames(obj@meta.data), value = TRUE)
+  data.frame(
+    stage_object = nm,
+    n_module_score_columns = length(cols),
+    n_cells = ncol(obj),
+    n_features = nrow(obj),
+    cluster_column = find_cluster_column(obj, params$dotplot_resolution),
+    stringsAsFactors = FALSE
+  )
+}))
+
+kable(stage_module_summary, caption = "Summary of stage-specific objects after adding module scores")
+```
+
+## Feature plots by stage
+
+```{r stage_feature_plots, echo=TRUE, fig.width=14, fig.height=10}
+stage_feature_plots <- lapply(names(stage_obj_list), function(nm) {
+  obj <- stage_obj_list[[nm]]
+  p <- plot_module_feature_grid(
+    obj = obj,
+    module_cols = module_score_cols,
+    reduction = "umap",
+    ncol = 5,
+    pt.size = 0.05
+  ) + patchwork::plot_annotation(title = paste0("Module scores: ", nm))
+
+  if (isTRUE(params$save_figures)) {
+    save_publication_plot(
+      plot_obj = p,
+      file_stub = paste0("featureplot_module_scores_", nm),
+      out_dir = figure_dir,
+      width = 16,
+      height = 11,
+      dpi = params$figure_dpi
+    )
+  }
+
+  p
+})
+
+for (p in stage_feature_plots) print(p)
+```
+
+## Dot plots by stage
+
+```{r stage_dot_plots, echo=TRUE, fig.width=12, fig.height=6}
+stage_dot_plots <- lapply(names(stage_obj_list), function(nm) {
+  obj <- stage_obj_list[[nm]]
+  cluster_col <- find_cluster_column(obj, params$dotplot_resolution)
+
+  if (is.na(cluster_col)) {
+    return(ggplot() + ggtitle(paste0(nm, ": no cluster column found for dot plot")))
+  }
+
+  p <- plot_module_dotplot(
+    obj = obj,
+    module_cols = module_score_cols,
+    group.by = cluster_col
+  ) + ggtitle(paste0("Module score dot plot: ", nm, " (", cluster_col, ")"))
+
+  if (isTRUE(params$save_figures)) {
+    save_publication_plot(
+      plot_obj = p,
+      file_stub = paste0("dotplot_module_scores_", nm, "_", gsub("\\.", "_", cluster_col)),
+      out_dir = figure_dir,
+      width = 14,
+      height = 7,
+      dpi = params$figure_dpi
+    )
+  }
+
+  p
+})
+
+for (p in stage_dot_plots) print(p)
+```
+
+## Integrated atlas module score figures
+
+```{r integrated_atlas_feature_plot, echo=TRUE, fig.width=14, fig.height=10}
+p_atlas_feature <- plot_module_feature_grid(
+  obj = atlas_int,
+  module_cols = module_score_cols,
+  reduction = "umap",
+  ncol = 5,
+  pt.size = 0.05
+) + patchwork::plot_annotation(title = "Integrated atlas module scores")
+
+if (isTRUE(params$save_figures)) {
+  save_publication_plot(
+    plot_obj = p_atlas_feature,
+    file_stub = "featureplot_module_scores_integrated_atlas",
+    out_dir = figure_dir,
+    width = 16,
+    height = 11,
+    dpi = params$figure_dpi
+  )
+}
+
+p_atlas_feature
+```
+
+```{r integrated_atlas_dotplots, echo=TRUE, fig.width=12, fig.height=6}
+atlas_cluster_col <- find_cluster_column(atlas_int, params$dotplot_resolution)
+
+p_atlas_dot_cluster <- plot_module_dotplot(
+  obj = atlas_int,
+  module_cols = module_score_cols,
+  group.by = atlas_cluster_col
+) + ggtitle(paste0("Integrated atlas module score dot plot by cluster (", atlas_cluster_col, ")"))
+
+p_atlas_dot_stage <- plot_module_dotplot(
+  obj = atlas_int,
+  module_cols = module_score_cols,
+  group.by = params$stage_col
+) + ggtitle("Integrated atlas module score dot plot by stage")
+
+if (isTRUE(params$save_figures)) {
+  save_publication_plot(
+    plot_obj = p_atlas_dot_cluster,
+    file_stub = paste0("dotplot_module_scores_integrated_atlas_", gsub("\\.", "_", atlas_cluster_col)),
+    out_dir = figure_dir,
+    width = 14,
+    height = 7,
+    dpi = params$figure_dpi
+  )
+  save_publication_plot(
+    plot_obj = p_atlas_dot_stage,
+    file_stub = "dotplot_module_scores_integrated_atlas_by_stage",
+    out_dir = figure_dir,
+    width = 14,
+    height = 7,
+    dpi = params$figure_dpi
+  )
+}
+
+p_atlas_dot_cluster
+p_atlas_dot_stage
+```
+
+## Integrated atlas summary
+
+```{r integrated_atlas_summary, echo=TRUE}
+atlas_summary <- data.frame(
+  metric = c(
+    "n_features",
+    "n_cells",
+    "default_assay",
+    "cluster_column_for_dotplot",
+    "n_module_score_columns"
+  ),
+  value = c(
+    nrow(atlas_int),
+    ncol(atlas_int),
+    DefaultAssay(atlas_int),
+    atlas_cluster_col,
+    length(module_score_cols)
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(atlas_summary, caption = "Summary of the integrated atlas after adding module scores")
+```
+
+## Output files
+
+```{r output_files_summary, echo=TRUE}
+output_files <- data.frame(
+  object = c(
+    "Stage-integrated objects with module scores",
+    "Adult-anchored integrated atlas with module scores"
+  ),
+  file = c(
+    stage_scores_file,
+    atlas_scores_file
+  ),
+  exists = file.exists(c(stage_scores_file, atlas_scores_file)),
+  stringsAsFactors = FALSE
+)
+
+kable(output_files, caption = "Module score objects produced by this report")
+```
+
+```{r figure_file_summary, echo=TRUE}
+saved_figures <- list.files(figure_dir, full.names = FALSE)
+
+figure_table <- data.frame(
+  figure_file = saved_figures,
+  stringsAsFactors = FALSE
+)
+
+kable(figure_table, caption = "Publication-ready module score figures saved to disk")
+```
+
+## Session info
+
+```{r session_info, echo=TRUE}
+sessionInfo()
+```

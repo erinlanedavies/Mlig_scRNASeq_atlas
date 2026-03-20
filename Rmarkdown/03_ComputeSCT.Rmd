@@ -12,10 +12,10 @@ output:
     fig_caption: true
 params:
   project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas"
-  seurat_obj: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/merged_all.rds"
+  seurat_obj: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/srt_obj_filtered.rds"
   sample_id_col: "sample_id"
   save_intermediate_files: TRUE
-  
+
   # Output directory
   out_dir: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/"
 
@@ -26,18 +26,17 @@ params:
 
 Run SCTransform.
 
-This template is designed to work with the outputs of the previous step (02_FilterPlotQCData.Rmd) and will produce:
+This template is designed to work with the outputs of the previous step (**02_FilterPlotQCData.Rmd**) and will produce:
 
 - a Seurat object with normalized and scaled RNA assay
-
 - a list of per-sample Seurat objects with SCT assay
-
 - a merged Seurat object containing RNA and SCT assays
+
+In addition to computing the objects, this report also summarizes the input data and provides diagnostic tables and figures for the RNA normalization/scaling and SCT steps.
 
 ## RMarkdown Setup
 
 ```{r setup, include=FALSE}
-
 knitr::opts_chunk$set(
   echo = TRUE,
   message = FALSE,
@@ -49,37 +48,32 @@ knitr::opts_chunk$set(
 )
 
 set.seed(params$seed)
-
 ```
 
 ## Preparing the environment
 
 ### Loading libraries
 
-```{r load_libraries, echo = TRUE}
-
+```{r load_libraries, echo=TRUE}
 library(Seurat)
 library(sctransform)
 library(dplyr)
 library(ggplot2)
 library(knitr)
-
+library(patchwork)
 ```
-
 
 ### Parameters
 
 Parameters used to generate this report:
 
-``` {r print_parameters, echo=TRUE}
-
+```{r print_parameters, echo=TRUE}
 str(params)
-
 ```
-## Environment configuration
+
+### Load helper functions
 
 ```{r load_functions, echo=TRUE}
-
 # Source helper functions relative to the project root
 
 bootstrap <- file.path(
@@ -103,23 +97,19 @@ source_report_functions(
     "integration_sct.R"
   )
 )
-
 ```
 
 ### Create output directory 
 
 ```{r prepare_output_dir, echo=TRUE}
-
 dir.create(params$out_dir, recursive = TRUE, showWarnings = FALSE)
 cat("Output directory:\n")
 cat(normalizePath(params$out_dir, mustWork = TRUE), "\n")
-
 ```
 
-### Load Seurat object
+## Load Seurat object
 
 ```{r load_input_object, echo=TRUE}
-
 input_srt <- read_seurat_rds(params$seurat_obj)
 
 cat("Input object loaded from:\n")
@@ -130,13 +120,12 @@ print(Assays(input_srt))
 
 cat("\nDimensions (features x cells):\n")
 print(dim(input_srt))
-
 ```
 
-### Seurat object structure
+### Input object summary
 
 ```{r input_metadata_summary, echo=TRUE}
-required_cols <- c(params$sample_id_col, "isOutlier", "nCount_RNA", "nFeature_RNA", "percent.mito")
+required_cols <- c(params$sample_id_col, "nCount_RNA", "nFeature_RNA", "percent.mito")
 missing_cols <- setdiff(required_cols, colnames(input_srt@meta.data))
 
 if (length(missing_cols) > 0) {
@@ -153,34 +142,27 @@ input_summary <- data.frame(
 )
 
 kable(input_summary, caption = "Basic summary of the input Seurat object")
+```
 
+```{r per_sample_input_summary, echo=TRUE}
+sample_summary <- input_srt@meta.data %>%
+  count(.data[[params$sample_id_col]], name = "n_cells") %>%
+  arrange(desc(n_cells))
+
+kable(sample_summary, caption = "Number of cells per sample in the input Seurat object")
 ```
 
 ## Normalize and scale RNA assay
 
 ```{r normalize_scale_RNA_assay, echo=TRUE}
-
 scaled_rds_file <- file.path(params$out_dir, "srt_obj_scaled.rds")
 
 if (file.exists(scaled_rds_file)) {
   srt_obj <- readRDS(file = scaled_rds_file)
   cat("Reusing previously saved scaled object:\n")
   cat(scaled_rds_file, "\n")
-
 } else {
-
   srt_obj <- input_srt
-
-  if (!"isOutlier" %in% colnames(srt_obj@meta.data)) {
-    stop("Column 'isOutlier' not found in Seurat object metadata.")
-  }
-
-  n_before <- ncol(srt_obj)
-
-  # Remove outliers
-  srt_obj <- subset(x = srt_obj, subset = isOutlier == FALSE)
-
-  n_after <- ncol(srt_obj)
 
   # Join RNA layers if needed
   srt_obj <- JoinLayers(srt_obj, assay = "RNA")
@@ -197,6 +179,7 @@ if (file.exists(scaled_rds_file)) {
   srt_obj <- ScaleData(
     object = srt_obj,
     assay = "RNA",
+    block.size = 5000,
     vars.to.regress = "percent.mito"
   )
 
@@ -204,60 +187,51 @@ if (file.exists(scaled_rds_file)) {
     saveRDS(srt_obj, file = scaled_rds_file)
   }
 }
-
 ```
 
-### Filtering summary
+### RNA assay summary after normalization and scaling
 
-```{r filtering_summary, echo=TRUE}
-filtering_df <- data.frame(
-  step = c("Before outlier filtering", "After outlier filtering"),
-  n_cells = c(ncol(input_srt), ncol(srt_obj))
+```{r normalized_summary, echo=TRUE}
+normalized_summary <- data.frame(
+  metric = c("n_features", "n_cells", "default_assay"),
+  value = c(
+    nrow(srt_obj),
+    ncol(srt_obj),
+    DefaultAssay(srt_obj)
+  )
 )
 
-filtering_df$percent_retained <- round(100 * filtering_df$n_cells / filtering_df$n_cells[1], 2)
-
-kable(filtering_df, caption = "Effect of outlier filtering on cell count")
-
+kable(normalized_summary, caption = "Summary of the Seurat object after RNA normalization and scaling")
 ```
 
-### Filtering summary per sample
+## Compute SCT per sample
 
-```{r filtered_per_sample_table, echo=TRUE}
-filtered_sample_df <- srt_obj@meta.data %>%
-  count(.data[[params$sample_id_col]], name = "n_cells") %>%
+```{r split_object_summary, echo=TRUE}
+sample_list <- split_seurat(srt_obj, split_by = params$sample_id_col)
+
+split_summary <- data.frame(
+  sample_id = names(sample_list),
+  n_features = vapply(sample_list, nrow, numeric(1)),
+  n_cells = vapply(sample_list, ncol, numeric(1)),
+  stringsAsFactors = FALSE
+) %>%
   arrange(desc(n_cells))
 
-kable(filtered_sample_df, caption = "Number of retained cells per sample after outlier filtering")
-
-```
-
-```{r filtered_qc_plots, echo=TRUE, fig.height=4, fig.width=12}
-VlnPlot(
-  srt_obj,
-  features = c("nCount_RNA", "nFeature_RNA", "percent.mito"),
-  ncol = 3,
-  pt.size = 0
-)
-
+kable(split_summary, caption = "Per-sample Seurat objects before SCTransform")
 ```
 
 ```{r compute_SCT, echo=TRUE}
-
 sct_list_file <- file.path(params$out_dir, "sct_list.rds")
 merged_sct_file <- file.path(params$out_dir, "srt_obj_norm_scaled_RNA_plus_SCT.rds")
 
 # Reuse SCT outputs if available
 if (file.exists(sct_list_file) && file.exists(merged_sct_file)) {
-
   sample_list <- readRDS(sct_list_file)
   srt_obj <- readRDS(merged_sct_file)
-
+  cat("Reusing previously saved SCT outputs:\n")
+  cat(sct_list_file, "\n")
+  cat(merged_sct_file, "\n")
 } else {
-
-  # Split by sample and run SCT per sample
-  sample_list <- split_seurat(srt_obj, split_by = params$sample_id_col)
-
   sample_list <- sct_transform_list(
     obj_list = sample_list,
     vst.flavor = "v2",
@@ -282,12 +256,87 @@ if (file.exists(sct_list_file) && file.exists(merged_sct_file)) {
 }
 
 gc()
-
 ```
 
+### SCT output summaries
+
+```{r sct_output_summary, echo=TRUE}
+sct_summary <- data.frame(
+  sample_id = names(sample_list),
+  n_features = vapply(sample_list, nrow, numeric(1)),
+  n_cells = vapply(sample_list, ncol, numeric(1)),
+  assays = vapply(sample_list, function(x) paste(Assays(x), collapse = ", "), character(1)),
+  stringsAsFactors = FALSE
+) %>%
+  arrange(desc(n_cells))
+
+kable(sct_summary, caption = "Per-sample Seurat objects after SCTransform")
+```
+
+```{r merged_sct_summary, echo=TRUE}
+merged_summary <- data.frame(
+  metric = c("n_features", "n_cells", "default_assay", "assays"),
+  value = c(
+    nrow(srt_obj),
+    ncol(srt_obj),
+    DefaultAssay(srt_obj),
+    paste(Assays(srt_obj), collapse = ", ")
+  )
+)
+
+kable(merged_summary, caption = "Summary of the merged Seurat object after SCTransform")
+```
+
+### Diagnostic figures for SCT results
+
+```{r sct_violin_merged, echo=TRUE, fig.width=12, fig.height=4.2}
+DefaultAssay(srt_obj) <- "SCT"
+
+VlnPlot(
+  srt_obj,
+  features = c("nCount_SCT", "nFeature_SCT"),
+  ncol = 2,
+  pt.size = 0
+)
+```
+
+```{r variable_features_example, echo=TRUE, fig.width=10, fig.height=4.5}
+example_sample <- sample_list[[1]]
+DefaultAssay(example_sample) <- "SCT"
+
+var_plot <- VariableFeaturePlot(example_sample)
+var_plot + ggtitle(paste0("Variable features for sample: ", names(sample_list)[1]))
+```
+
+```{r pca_example_sample, echo=TRUE, eval=FALSE}
+# Optional diagnostic: run only if you want a PCA plot for one SCT-transformed sample.
+# example_sample <- RunPCA(example_sample, assay = "SCT", verbose = FALSE)
+DimPlot(example_sample, reduction = "pca") + ggtitle(paste0("PCA of sample: ", names(sample_list)[1]))
+```
+
+## Output files
+
+```{r output_files_summary, echo=TRUE}
+output_files <- data.frame(
+  object = c(
+    "Scaled RNA Seurat object",
+    "List of SCT-transformed Seurat objects",
+    "Merged RNA + SCT Seurat object"
+  ),
+  file = c(
+    scaled_rds_file,
+    sct_list_file,
+    merged_sct_file
+  ),
+  exists = file.exists(c(scaled_rds_file, sct_list_file, merged_sct_file)),
+  stringsAsFactors = FALSE
+)
+
+kable(output_files, caption = "Expected output files produced by this report")
+```
+
+## Session info
 
 ```{r session_info, echo=TRUE}
-
 sessionInfo()
-
 ```

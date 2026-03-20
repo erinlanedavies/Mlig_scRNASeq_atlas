@@ -15,7 +15,8 @@ params:
   seurat_obj: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/merged_all.rds"
   sample_id_col: "sample_id"
   save_filtered_object: TRUE
-  out_dir: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/"
+  save_qc_figures: TRUE
+  out_dir: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/"
   seed: 42
 ---
 
@@ -23,19 +24,12 @@ params:
 
 Filter and visualize QC metrics.
 
-This report is designed to work with the outputs of **01_ComputeQCMetrics.Rmd** and performs the following tasks:
-
-- Load the merged Seurat object containing QC annotations
-- Visualize QC metrics **before filtering**
-- Filter cells flagged as outliers (`isOutlier == TRUE`)
-- Produce QC summaries and plots **after filtering**
-- Save a filtered Seurat object
-
-The goal of this report is purely **QC visualization and filtering**, keeping it logically separate from normalization or SCTransform.
+This report loads the merged Seurat object, visualizes QC metrics before filtering,
+filters cells flagged as outliers, and generates publication-ready QC plots.
 
 ---
 
-# RMarkdown Setup
+# Setup
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
@@ -43,9 +37,9 @@ knitr::opts_chunk$set(
   message = FALSE,
   warning = FALSE,
   fig.align = "center",
-  fig.width = 8,
-  fig.height = 4,
-  dpi = 150
+  fig.width = 10,
+  fig.height = 5,
+  dpi = 300
 )
 
 set.seed(params$seed)
@@ -53,22 +47,22 @@ set.seed(params$seed)
 
 ---
 
-# Preparing the environment
+# Libraries
 
-## Libraries
-
-```{r load_libraries}
+```{r load_libraries, echo=TRUE}
 library(Seurat)
 library(dplyr)
 library(ggplot2)
 library(knitr)
+library(patchwork)
+library(scales)
 ```
 
 ---
 
 # Parameters
 
-```{r print_parameters}
+```{r params, echo=TRUE}
 str(params)
 ```
 
@@ -76,140 +70,102 @@ str(params)
 
 # Load helper functions
 
-```{r load_functions}
-
-bootstrap <- file.path(
-  normalizePath(params$project_root, mustWork = TRUE),
-  "R",
-  "source_report_functions.R"
-)
-
-if (!file.exists(bootstrap)) {
-  stop("Bootstrap file not found at: ", bootstrap)
-}
-
-source(bootstrap)
-
-source_report_functions(
-  base_dir = params$project_root,
-  rel_dir  = "R/report_utils",
-  files    = c(
-    "io.R",
-    "seurat.R"
-  )
-)
+```{r load_helper, echo=TRUE}
+source(file.path(params$project_root, "R", "report_utils", "qc_plot_helpers.R"))
 ```
 
 ---
 
 # Prepare output directory
 
-```{r prepare_output_dir}
-
+```{r create_dir_structure, echo=TRUE}
 dir.create(params$out_dir, recursive = TRUE, showWarnings = FALSE)
-
-cat("Output directory:\n")
-cat(normalizePath(params$out_dir, mustWork = TRUE), "\n")
+qc_fig_dir <- file.path(params$out_dir, "qc_figures")
+dir.create(qc_fig_dir, recursive = TRUE, showWarnings = FALSE)
+obj_dir <- file.path(params$out_dir, "objs")
+dir.create(obj_dir, recursive = TRUE, showWarnings = FALSE)
 ```
 
 ---
 
 # Load Seurat object
 
-```{r load_input_object}
+```{r load_seurat, echo=TRUE}
+srt <- readRDS(params$seurat_obj)
 
-input_srt <- read_seurat_rds(params$seurat_obj)
+cat("Assays:\n")
+print(Assays(srt))
 
-cat("Input object loaded from:\n")
-cat(params$seurat_obj, "\n\n")
-
-cat("Assays present:\n")
-print(Assays(input_srt))
-
-cat("\nDimensions (features x cells):\n")
-print(dim(input_srt))
+cat("\nDimensions:\n")
+print(dim(srt))
 ```
 
 ---
 
-# Metadata validation
+# QC before filtering
 
-```{r metadata_validation}
+## Violin plots
 
-required_cols <- c(
-  params$sample_id_col,
-  "isOutlier",
+```{r violin_plot_before_filtering, echo=TRUE}
+qc_violin_before_nCount_RNA <- make_qc_violin_plot(
+  srt,
+  c("nCount_RNA")
+)
+
+qc_violin_before_nFeature_RNA <- make_qc_violin_plot(
+  srt,
+  c("nFeature_RNA")
+)
+
+qc_violin_before_percent_mito <- make_qc_violin_plot(
+  srt,
+  c("percent.mito")
+)
+
+qc_violin_before_nCount_RNA
+qc_violin_before_nFeature_RNA
+qc_violin_before_percent_mito
+
+```
+
+## Scatter plots
+
+```{r scatter_plot_before_filtering, echo=TRUE}
+scatter1 <- make_feature_scatter(
+  srt,
+  "nCount_RNA",
+  "percent.mito",
+  "Before filtering: counts vs mito"
+)
+
+scatter2 <- make_feature_scatter(
+  srt,
   "nCount_RNA",
   "nFeature_RNA",
-  "percent.mito"
+  "Before filtering: counts vs features"
 )
 
-missing_cols <- setdiff(required_cols, colnames(input_srt@meta.data))
-
-if (length(missing_cols) > 0) {
-  stop("Missing required metadata columns: ", paste(missing_cols, collapse = ", "))
-}
+scatter1
+scatter2
 ```
 
 ---
 
-# Input object summary
+# Apply filtering
 
-```{r input_summary}
+```{r filtering, echo=TRUE}
+cells_before <- ncol(srt)
 
-summary_df <- data.frame(
-  metric = c("n_features", "n_cells", "n_samples"),
-  value = c(
-    nrow(input_srt),
-    ncol(input_srt),
-    length(unique(input_srt@meta.data[[params$sample_id_col]]))
-  )
-)
+srt_filtered <- subset(srt, subset = isOutlier == FALSE)
 
-kable(summary_df, caption = "Input Seurat object summary")
+cells_after <- ncol(srt_filtered)
 ```
 
 ---
 
-# QC metrics before filtering
+## Filtering summary
 
-```{r qc_plots_before, fig.width=12}
-
-VlnPlot(
-  input_srt,
-  features = c("nCount_RNA", "nFeature_RNA", "percent.mito"),
-  ncol = 3,
-  pt.size = 0
-)
-```
-
-```{r qc_scatter_before}
-
-FeatureScatter(input_srt, feature1 = "nCount_RNA", feature2 = "percent.mito")
-FeatureScatter(input_srt, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
-```
-
----
-
-# Apply QC filtering
-
-```{r filter_cells}
-
-cells_before <- ncol(input_srt)
-
-srt_obj <- subset(
-  input_srt,
-  subset = isOutlier == FALSE
-)
-
-cells_after <- ncol(srt_obj)
-```
-
----
-
-# Filtering summary
-
-```{r filtering_summary}
+```{r filtering_summary, echo=TRUE}
 
 filtering_df <- data.frame(
   step = c("Before filtering", "After filtering"),
@@ -226,14 +182,14 @@ kable(filtering_df, caption = "Effect of QC filtering on cell counts")
 
 ---
 
-# Filtering summary per sample
+## Filtering summary per sample
 
-```{r per_sample_filtering}
+```{r per_sample_filtering, echo=TRUE}
 
-sample_counts_before <- input_srt@meta.data %>%
+sample_counts_before <- srt@meta.data %>%
   count(.data[[params$sample_id_col]], name = "cells_before")
 
-sample_counts_after <- srt_obj@meta.data %>%
+sample_counts_after <- srt_filtered@meta.data %>%
   count(.data[[params$sample_id_col]], name = "cells_after")
 
 sample_filter_df <- left_join(
@@ -250,61 +206,83 @@ sample_filter_df$percent_retained <- round(
 kable(sample_filter_df, caption = "Per-sample cell retention after QC filtering")
 ```
 
----
+# QC after filtering
 
-# QC metrics after filtering
+## Violin plots
 
-```{r qc_plots_after, fig.width=12}
+```{r violin_plot_after_filtering, echo=TRUE}
 
-VlnPlot(
-  srt_obj,
-  features = c("nCount_RNA", "nFeature_RNA", "percent.mito"),
-  ncol = 3,
-  pt.size = 0
+qc_violin_after_nCount_RNA <- make_qc_violin_plot(
+  srt_filtered,
+  c("nCount_RNA")
 )
+
+qc_violin_after_nFeature_RNA <- make_qc_violin_plot(
+  srt_filtered,
+  c("nFeature_RNA")
+)
+
+qc_violin_after_percent_mito <- make_qc_violin_plot(
+  srt_filtered,
+  c("percent.mito")
+)
+
+qc_violin_after_nCount_RNA
+qc_violin_after_nFeature_RNA
+qc_violin_after_percent_mito
+
+
 ```
 
-```{r qc_scatter_after}
+## Scatter plots
 
-FeatureScatter(srt_obj, feature1 = "nCount_RNA", feature2 = "percent.mito")
-FeatureScatter(srt_obj, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+```{r scatter_plot_after_filtering, echo=TRUE}
+scatter_after1 <- make_feature_scatter(
+  srt_filtered,
+  "nCount_RNA",
+  "percent.mito",
+  "After filtering: counts vs mito"
+)
+
+scatter_after2 <- make_feature_scatter(
+  srt_filtered,
+  "nCount_RNA",
+  "nFeature_RNA",
+  "After filtering: counts vs features"
+)
+
+scatter_after1
+scatter_after2
 ```
 
 ---
 
-# Save filtered Seurat object
+# Save outputs
 
-```{r save_filtered_object}
-
-filtered_file <- file.path(params$out_dir, "srt_obj_filtered.rds")
-
-if (isTRUE(params$save_filtered_object)) {
-  saveRDS(srt_obj, file = filtered_file)
-  cat("Filtered Seurat object saved to:\n", filtered_file, "\n")
-}
-```
-
----
-
-# Final object summary
-
-```{r final_summary}
-
-final_df <- data.frame(
-  metric = c("n_features", "n_cells"),
-  value = c(
-    nrow(srt_obj),
-    ncol(srt_obj)
+```{r save_outputs, echo=TRUE}
+if (params$save_filtered_object) {
+  saveRDS(
+    srt_filtered,
+    file.path(obj_dir, "srt_obj_filtered.rds")
   )
-)
+}
 
-kable(final_df, caption = "Filtered Seurat object summary")
+if (params$save_qc_figures) {
+  save_qc_plot(qc_violin_before_nCount_RNA, "qc_violin_before_nCount_RNA.pdf", qc_fig_dir)
+  save_qc_plot(qc_violin_before_nFeature_RNA, "qc_violin_before_nFeature_RNA.pdf", qc_fig_dir)
+  save_qc_plot(qc_violin_before_percent_mito, "qc_violin_before_percent_mito.pdf", qc_fig_dir)
+  save_qc_plot(qc_violin_after_nCount_RNA, "qc_violin_after_nCount_RNA.pdf", qc_fig_dir)
+  save_qc_plot(qc_violin_after_nFeature_RNA, "qc_violin_after_nFeature_RNA.pdf", qc_fig_dir)
+  save_qc_plot(qc_violin_after_percent_mito, "qc_violin_after_percent_mito.pdf", qc_fig_dir)
+  save_qc_plot(scatter1 + scatter2, "qc_scatter_before.pdf", qc_fig_dir)
+  save_qc_plot(scatter_after1 + scatter_after2, "qc_scatter_after.pdf", qc_fig_dir)
+}
 ```
 
 ---
 
 # Session info
 
-```{r session_info}
+```{r session_info, echo=TRUE}
 sessionInfo()
 ```
