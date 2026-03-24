@@ -31,3 +31,6 @@ Thumbs.db
 __pycache__/
 *.pyc
 
+# Rmarkdown output files
+*.html
+results/rmarkdown_reports/*.html

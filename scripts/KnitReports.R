@@ -32,13 +32,18 @@ renv::load(project = getwd())
 #rm(list=ls())
 #gc()
 
+#rmarkdown::render(
+#  "Rmarkdown/04_IntegrateSeuratObjects2.Rmd",
+#  output_file = "04_IntegrateSeuratObjects.html",
+#  output_dir  = "results/rmarkdown_reports"
+#)
+
 rmarkdown::render(
-  "Rmarkdown/04_IntegrateSeuratObjects2.Rmd",
-  output_file = "04_IntegrateSeuratObjects.html",
-  output_dir  = "results/rmarkdown_reports"
+  "Rmarkdown/05_ComputeModuleScores.Rmd",
+   output_file = "05_ComputeModuleScores.html",
+   output_dir  = "results/rmarkdown_reports"
 )
 
-#
 # rmarkdown::render(
 #   "03_RunAnalysis.Rmd",
 #   output_file = "03_RunAnalysis.html",

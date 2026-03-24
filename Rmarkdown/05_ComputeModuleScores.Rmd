@@ -21,6 +21,7 @@ params:
   save_figures: TRUE
   figure_dpi: 600
   dotplot_resolution: 1.8
+  clustree_prefix: "integrated_snn_res."
   out_dir: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/"
   palette: ""
   seed: 42
@@ -70,6 +71,7 @@ library(ggplot2)
 library(dplyr)
 library(knitr)
 library(patchwork)
+library(clustree)
 ```
 
 ### Parameters
@@ -264,27 +266,20 @@ kable(stage_module_summary, caption = "Summary of stage-specific objects after a
 
 ```{r stage_feature_plots, echo=TRUE, fig.width=14, fig.height=10}
 stage_feature_plots <- lapply(names(stage_obj_list), function(nm) {
-  obj <- stage_obj_list[[nm]]
-  p <- plot_module_feature_grid(
-    obj = obj,
+  save_module_feature_plot(
+    obj = stage_obj_list[[nm]],
     module_cols = module_score_cols,
     reduction = "umap",
     ncol = 5,
-    pt.size = 0.05
-  ) + patchwork::plot_annotation(title = paste0("Module scores: ", nm))
-
-  if (isTRUE(params$save_figures)) {
-    save_publication_plot(
-      plot_obj = p,
-      file_stub = paste0("featureplot_module_scores_", nm),
-      out_dir = figure_dir,
-      width = 16,
-      height = 11,
-      dpi = params$figure_dpi
-    )
-  }
-
-  p
+    pt.size = 0.05,
+    title = paste0("Module scores: ", nm),
+    file_stub = paste0("featureplot_module_scores_", nm),
+    out_dir = figure_dir,
+    save_figures = params$save_figures,
+    width = 16,
+    height = 11,
+    dpi = params$figure_dpi
+  )
 })
 
 for (p in stage_feature_plots) print(p)
@@ -297,28 +292,26 @@ stage_dot_plots <- lapply(names(stage_obj_list), function(nm) {
   obj <- stage_obj_list[[nm]]
   cluster_col <- find_cluster_column(obj, params$dotplot_resolution)
 
-  if (is.na(cluster_col)) {
-    return(ggplot() + ggtitle(paste0(nm, ": no cluster column found for dot plot")))
-  }
-
-  p <- plot_module_dotplot(
+  save_module_dotplot(
     obj = obj,
     module_cols = module_score_cols,
-    group.by = cluster_col
-  ) + ggtitle(paste0("Module score dot plot: ", nm, " (", cluster_col, ")"))
-
-  if (isTRUE(params$save_figures)) {
-    save_publication_plot(
-      plot_obj = p,
-      file_stub = paste0("dotplot_module_scores_", nm, "_", gsub("\\.", "_", cluster_col)),
-      out_dir = figure_dir,
-      width = 14,
-      height = 7,
-      dpi = params$figure_dpi
-    )
-  }
-
-  p
+    group.by = cluster_col,
+    title = if (is.na(cluster_col)) {
+      paste0(nm, ": no cluster column found for dot plot")
+    } else {
+      paste0("Module score dot plot: ", nm, " (", cluster_col, ")")
+    },
+    file_stub = if (is.na(cluster_col)) {
+      NULL
+    } else {
+      paste0("dotplot_module_scores_", nm, "_", gsub("\\\\.", "_", cluster_col))
+    },
+    out_dir = figure_dir,
+    save_figures = params$save_figures,
+    width = 14,
+    height = 7,
+    dpi = params$figure_dpi
+  )
 })
 
 for (p in stage_dot_plots) print(p)
@@ -327,24 +320,20 @@ for (p in stage_dot_plots) print(p)
 ## Integrated atlas module score figures
 
 ```{r integrated_atlas_feature_plot, echo=TRUE, fig.width=14, fig.height=10}
-p_atlas_feature <- plot_module_feature_grid(
+p_atlas_feature <- save_module_feature_plot(
   obj = atlas_int,
   module_cols = module_score_cols,
   reduction = "umap",
   ncol = 5,
-  pt.size = 0.05
-) + patchwork::plot_annotation(title = "Integrated atlas module scores")
-
-if (isTRUE(params$save_figures)) {
-  save_publication_plot(
-    plot_obj = p_atlas_feature,
-    file_stub = "featureplot_module_scores_integrated_atlas",
-    out_dir = figure_dir,
-    width = 16,
-    height = 11,
-    dpi = params$figure_dpi
-  )
-}
+  pt.size = 0.05,
+  title = "Integrated atlas module scores",
+  file_stub = "featureplot_module_scores_integrated_atlas",
+  out_dir = figure_dir,
+  save_figures = params$save_figures,
+  width = 16,
+  height = 11,
+  dpi = params$figure_dpi
+)
 
 p_atlas_feature
 ```
@@ -352,39 +341,77 @@ p_atlas_feature
 ```{r integrated_atlas_dotplots, echo=TRUE, fig.width=12, fig.height=6}
 atlas_cluster_col <- find_cluster_column(atlas_int, params$dotplot_resolution)
 
-p_atlas_dot_cluster <- plot_module_dotplot(
+p_atlas_dot_cluster <- save_module_dotplot(
   obj = atlas_int,
   module_cols = module_score_cols,
-  group.by = atlas_cluster_col
-) + ggtitle(paste0("Integrated atlas module score dot plot by cluster (", atlas_cluster_col, ")"))
+  group.by = atlas_cluster_col,
+  title = paste0("Integrated atlas module score dot plot by cluster (", atlas_cluster_col, ")"),
+  file_stub = paste0(
+    "dotplot_module_scores_integrated_atlas_",
+    gsub("\\\\.", "_", atlas_cluster_col)
+  ),
+  out_dir = figure_dir,
+  save_figures = params$save_figures,
+  width = 14,
+  height = 7,
+  dpi = params$figure_dpi
+)
 
-p_atlas_dot_stage <- plot_module_dotplot(
+p_atlas_dot_stage <- save_module_dotplot(
   obj = atlas_int,
   module_cols = module_score_cols,
-  group.by = params$stage_col
-) + ggtitle("Integrated atlas module score dot plot by stage")
-
-if (isTRUE(params$save_figures)) {
-  save_publication_plot(
-    plot_obj = p_atlas_dot_cluster,
-    file_stub = paste0("dotplot_module_scores_integrated_atlas_", gsub("\\.", "_", atlas_cluster_col)),
-    out_dir = figure_dir,
-    width = 14,
-    height = 7,
-    dpi = params$figure_dpi
-  )
-  save_publication_plot(
-    plot_obj = p_atlas_dot_stage,
-    file_stub = "dotplot_module_scores_integrated_atlas_by_stage",
-    out_dir = figure_dir,
-    width = 14,
-    height = 7,
-    dpi = params$figure_dpi
-  )
-}
+  group.by = params$stage_col,
+  title = "Integrated atlas module score dot plot by stage",
+  file_stub = "dotplot_module_scores_integrated_atlas_by_stage",
+  out_dir = figure_dir,
+  save_figures = params$save_figures,
+  width = 14,
+  height = 7,
+  dpi = params$figure_dpi
+)
 
 p_atlas_dot_cluster
 p_atlas_dot_stage
+```
+
+## Clustree plots by stage
+
+```{r stage_clustree_plots, echo=TRUE, fig.width=16, fig.height=6}
+invisible(lapply(names(stage_obj_list), function(nm) {
+  save_module_clustree_series(
+    obj = stage_obj_list[[nm]],
+    module_cols = module_score_cols,
+    prefix = params$clustree_prefix,
+    plot_title_prefix = nm,
+    file_stub_prefix = paste0("clustree_mean_", nm),
+    out_dir = figure_dir,
+    save_figures = params$save_figures,
+    width = 16,
+    height = 6,
+    dpi = params$figure_dpi,
+    print_plots = TRUE,
+    node_colour_aggr = "mean"
+  )
+}))
+```
+
+## Clustree plots for integrated atlas
+
+```{r integrated_atlas_clustree_plots, echo=TRUE, fig.width=16, fig.height=6}
+save_module_clustree_series(
+  obj = atlas_int,
+  module_cols = module_score_cols,
+  prefix = params$clustree_prefix,
+  plot_title_prefix = "Integrated atlas",
+  file_stub_prefix = "clustree_integrated_atlas_mean_",
+  out_dir = figure_dir,
+  save_figures = params$save_figures,
+  width = 16,
+  height = 6,
+  dpi = params$figure_dpi,
+  print_plots = TRUE,
+  node_colour_aggr = "mean"
+)
 ```
 
 ## Integrated atlas summary
