@@ -3,9 +3,9 @@ SampleID	SamplePath	Stage	ProjectID
 12_unsorted_3dph	/data/Mlig_scRNA_Seq/Francisco/data/STARsolo_output_Erin/12_unsorted_3dph_learning_rate/Solo.out/Gene/cellbender_filtered.h5	3_days	Mlig_scRNASeq
 15_7d_juveniles	/data/Mlig_scRNA_Seq/Francisco/data/STARsolo_output_Erin/15_7d_juveniles/Solo.out/Gene/cellbender_filtered.h5	7_days	Mlig_scRNASeq
 16_3d_juveniles	/data/Mlig_scRNA_Seq/Francisco/data/STARsolo_output_Erin/16_3d_juveniles_learning_rate/Solo.out/Gene/cellbender_filtered.h5	3_days	Mlig_scRNASeq
-17_0_1d_Hatchlings	/data/Mlig_scRNA_Seq/Francisco/data/STARsolo_output_Erin/17_0_1d_Hatchlings_learning_rate/Solo.out/Gene/cellbender_filtered.h5	0-1_days	Mlig_scRNASeq
-18_0_1d_Hatchling	/data/Mlig_scRNA_Seq/Francisco/data/STARsolo_output_Erin/18_0_1d_Hatchling_learning_rate/Solo.out/Gene/cellbender_filtered.h5	0-1_days	Mlig_scRNASeq
-19_0_1d_Hatchling	/data/Mlig_scRNA_Seq/Francisco/data/STARsolo_output_Erin/19_0_1d_Hatchling_learning_rate/Solo.out/Gene/cellbender_filtered.h5	0-1_days	Mlig_scRNASeq
+17_0_1d_Hatchlings	/data/Mlig_scRNA_Seq/Francisco/data/STARsolo_output_Erin/17_0_1d_Hatchlings_learning_rate/Solo.out/Gene/cellbender_filtered.h5	0_1_days	Mlig_scRNASeq
+18_0_1d_Hatchling	/data/Mlig_scRNA_Seq/Francisco/data/STARsolo_output_Erin/18_0_1d_Hatchling_learning_rate/Solo.out/Gene/cellbender_filtered.h5	0_1_days	Mlig_scRNASeq
+19_0_1d_Hatchling	/data/Mlig_scRNA_Seq/Francisco/data/STARsolo_output_Erin/19_0_1d_Hatchling_learning_rate/Solo.out/Gene/cellbender_filtered.h5	0_1_days	Mlig_scRNASeq
 2_Adult_Unsorted	/data/Mlig_scRNA_Seq/Francisco/data/STARsolo_output_Erin/2_Adult_Unsorted/Solo.out/Gene/cellbender_filtered.h5	Adult	Mlig_scRNASeq
 2_Adult_Unsorted_DASH	/data/Mlig_scRNA_Seq/Francisco/data/STARsolo_output_Erin/2_Adult_Unsorted_DASH/Solo.out/Gene/cellbender_filtered.h5	Adult	Mlig_scRNASeq
 7_Sorted_Adult	/data/Mlig_scRNA_Seq/Francisco/data/STARsolo_output_Erin/7_Sorted_Adult/Solo.out/Gene/cellbender_filtered.h5	Adult	Mlig_scRNASeq

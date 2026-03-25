@@ -1,5 +1,5 @@
-StageID	HexCode	ColorName
-Adult	#66A61E	Basil
-0-1_days	#E7298A	Raspberry
-3_days	#7570B3	Blueberry
-7_days	#D95F02	Tangerine
+RawStageID	CleanStageID	HexCode	ColorName
+Adult	Adult	#66A61E	Basil
+0_1_days	0/1 Day Hatchlings	#E7298A	Raspberry
+3_days	3-Day Juveniles	#7570B3	Blueberry
+7_days	7-Day Juveniles	#D95F02	Tangerine

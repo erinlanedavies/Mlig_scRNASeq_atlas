@@ -271,7 +271,7 @@ validate_module_score_columns <- function(obj, module_cols) {
 plot_module_clustree <- function(obj,
                                  module_col,
                                  prefix = "integrated_snn_res.",
-                                 node_colour_aggr = "median",
+                                 node_colour_aggr = "mean",
                                  title = NULL) {
   if (!inherits(obj, "Seurat")) {
     stop("obj must be a Seurat object.")
@@ -328,7 +328,7 @@ save_module_clustree_series <- function(obj,
       obj = obj,
       module_col = module_col,
       prefix = prefix,
-      node_colour_aggr = "median",
+      node_colour_aggr = "mean",
       title = this_title
     )
 

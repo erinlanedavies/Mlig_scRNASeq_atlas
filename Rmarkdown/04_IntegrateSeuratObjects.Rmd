@@ -14,28 +14,35 @@ params:
   project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas"
   sct_list_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/sct_list.rds"
   merged_sct_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/srt_obj_norm_scaled_RNA_plus_SCT.rds"
+  sample_color_table: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/data/metadata/sample_color_codes.tsv"
+  stage_color_table: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/data/metadata/stage_color_codes.tsv"
   sample_id_col: "sample_id"
   stage_col: "Stage"
-  stages: !r c("0-1_days", "3_days", "7_days", "Adult")
+  cluster_col: "integrated_snn_res.1.8"
+  stages: !r c("0_1_days", "3_days", "7_days", "Adult")
   adult_reference_samples: !r c("2_Adult_Unsorted", "2_Adult_Unsorted_DASH", "7_Sorted_Adult")
   nfeatures: 3000
   dims_use: 40
-  clustering_resolutions: !r c(0.6, 1.2, 1.8, 2.4, 4)
+  clustering_resolutions: !r c(0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3)
   save_intermediate_files: TRUE
+  save_figures: TRUE
+  figure_dpi: 600
   out_dir: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/"
   seed: 42
 ---
-
+  
 # Description
-
+  
 Integrate Seurat objects.
 
 This template is designed to work with the outputs of the previous step (**03_ComputeSCT.Rmd**) and performs two integration procedures:
-
+  
 - integrate replicates within each stage independently
 - integrate all samples using adult samples as references
 
 The report also provides diagnostic tables and figures to summarize inputs and integration outputs. Whenever intermediate files already exist, the report reuses them instead of recomputing from scratch.
+
+Figures are displayed in the HTML report and also saved as publication-quality PDF and PNG files. Sample colors and clean sample names are read from an external metadata table.
 
 ## RMarkdown Setup
 
@@ -67,12 +74,13 @@ library(ggplot2)
 library(dplyr)
 library(knitr)
 library(patchwork)
+library(leidenbase)
 ```
 
 ### Parameters
 
 Parameters used to generate this report:
-
+  
 ```{r print_parameters, echo=TRUE}
 str(params)
 ```
@@ -97,17 +105,162 @@ source_report_functions(
   rel_dir  = "R/report_utils",
   files    = c(
     "io.R",
-    "seurat.R"
+    "seurat.R",
+    "umap_helpers.R"
   )
 )
+```
+
+### Plotting helpers
+
+```{r plotting_helpers, echo=TRUE}
+save_publication_plot <- function(plot_obj,
+                                  file_stub,
+                                  out_dir,
+                                  width = 10,
+                                  height = 6,
+                                  dpi = 600) {
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  
+  ggsave(
+    filename = file.path(out_dir, paste0(file_stub, ".pdf")),
+    plot = plot_obj,
+    width = width,
+    height = height,
+    units = "in",
+    dpi = dpi,
+    bg = "white"
+  )
+  
+  ggsave(
+    filename = file.path(out_dir, paste0(file_stub, ".png")),
+    plot = plot_obj,
+    width = width,
+    height = height,
+    units = "in",
+    dpi = dpi,
+    bg = "white"
+  )
+}
+
+clean_sample_metadata <- function(obj, sample_id_col, sample_key) {
+  if (!sample_id_col %in% colnames(obj@meta.data)) {
+    stop("sample_id_col not found in object metadata: ", sample_id_col)
+  }
+  
+  obj@meta.data[[sample_id_col]] <- as.character(obj@meta.data[[sample_id_col]])
+  
+  obj@meta.data$CleanSampleID <- dplyr::recode(
+    obj@meta.data[[sample_id_col]],
+    !!!setNames(sample_key$CleanSampleID, sample_key$RawSampleID),
+    .default = obj@meta.data[[sample_id_col]]
+  )
+  
+  obj
+}
+
+clean_stage_metadata <- function(obj, stage_id_col, stage_key) {
+  if (!stage_id_col %in% colnames(obj@meta.data)) {
+    stop("stage_id_col not found in object metadata: ", stage_id_col)
+  }
+  
+  obj@meta.data[[stage_id_col]] <- as.character(obj@meta.data[[stage_id_col]])
+  
+  obj@meta.data$CleanStageID <- dplyr::recode(
+    obj@meta.data[[stage_id_col]],
+    !!!setNames(stage_key$CleanStageID, stage_key$RawStageID),
+    .default = obj@meta.data[[stage_id_col]]
+  )
+  
+  obj
+}
+
+make_named_sample_colors <- function(sample_key) {
+  setNames(sample_key$HexCode, sample_key$CleanSampleID)
+}
+
+make_named_stage_colors <- function(stage_key) {
+  setNames(stage_key$HexCode, stage_key$StageID)
+}
+
 ```
 
 ### Prepare output directory
 
 ```{r prepare_output_dir, echo=TRUE}
 dir.create(params$out_dir, recursive = TRUE, showWarnings = FALSE)
+figure_dir <- file.path(params$out_dir, "integration_figures")
+dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
+
 cat("Output directory:\n")
-cat(normalizePath(params$out_dir, mustWork = TRUE), "\n")
+cat(normalizePath(params$out_dir, mustWork = TRUE), "\n\n")
+
+cat("Figure directory:\n")
+cat(normalizePath(figure_dir, mustWork = TRUE), "\n")
+```
+
+## Load sample color table
+
+```{r load_sample_colors, echo=TRUE}
+if (!file.exists(path.expand(params$sample_color_table))) {
+  stop("sample_color_table not found: ", params$sample_color_table)
+}
+
+sample_key <- read.table(
+  file = path.expand(params$sample_color_table),
+  sep = "\t",
+  header = TRUE,
+  stringsAsFactors = FALSE,
+  comment.char = "",
+  check.names = FALSE
+)
+
+required_color_cols <- c("RawSampleID", "CleanSampleID", "HexCode")
+missing_color_cols <- setdiff(required_color_cols, colnames(sample_key))
+
+if (length(missing_color_cols) > 0) {
+  stop("Missing required columns in sample_color_table: ",
+       paste(missing_color_cols, collapse = ", "))
+}
+
+sample_key <- sample_key %>%
+  distinct(RawSampleID, .keep_all = TRUE)
+
+sample_colors <- make_named_sample_colors(sample_key)
+
+kable(sample_key, caption = "Sample color and clean-label table used for plotting")
+```
+
+## Load stage color table
+
+```{r load_stage_colors, echo=TRUE}
+if (!file.exists(path.expand(params$stage_color_table))) {
+  stop("stage_color_table not found: ", params$stage_color_table)
+}
+
+stage_key <- read.table(
+  file = path.expand(params$stage_color_table),
+  sep = "\t",
+  header = TRUE,
+  stringsAsFactors = FALSE,
+  comment.char = "",
+  check.names = FALSE
+)
+
+required_color_cols <- c("RawStageID", "CleanStageID", "HexCode")
+missing_color_cols <- setdiff(required_color_cols, colnames(stage_key))
+
+if (length(missing_color_cols) > 0) {
+  stop("Missing required columns in stage_color_table: ",
+       paste(missing_color_cols, collapse = ", "))
+}
+
+stage_key <- stage_key %>%
+  distinct(RawStageID, .keep_all = TRUE)
+
+stage_colors <- make_named_stage_colors(stage_key)
+
+kable(stage_key, caption = "Stage colors and labels used for plotting")
 ```
 
 ## Load data
@@ -160,6 +313,14 @@ sample_summary <- data.frame(
     },
     character(1)
   ),
+  clean_sample_id = vapply(
+    sample_list,
+    function(x) {
+      md <- x@meta.data
+      if ("CleanSampleID" %in% colnames(md)) as.character(md$CleanSampleID[1]) else NA_character_
+    },
+    character(1)
+  ),
   assays = vapply(sample_list, function(x) paste(Assays(x), collapse = ", "), character(1)),
   stringsAsFactors = FALSE
 ) %>%
@@ -196,7 +357,7 @@ if (file.exists(features_file)) {
     object.list = sample_list,
     nfeatures = params$nfeatures
   )
-
+  
   if (isTRUE(params$save_intermediate_files)) {
     saveRDS(features, file = features_file)
   }
@@ -231,10 +392,10 @@ if (file.exists(stage_list_file)) {
   cat(stage_list_file, "\n")
 } else {
   stage_obj_list <- list()
-
+  
   for (stage_id in params$stages) {
     cat("Integrating stage:", stage_id, "\n")
-
+    
     filtered_list <- Filter(
       function(obj) {
         md <- obj@meta.data
@@ -243,32 +404,32 @@ if (file.exists(stage_list_file)) {
       },
       sample_list
     )
-
+    
     if (length(filtered_list) == 0) {
       warning("No samples found for stage: ", stage_id, ". Skipping.")
       next
     }
-
+    
     stage_name <- str_replace(stage_id, pattern = "-", replacement = "_")
     stage_file <- file.path(params$out_dir, paste0("srt_", stage_name, "_integrated.rds"))
-
+    
     if (file.exists(stage_file)) {
       cat("Reusing previously saved integrated object for stage ", stage_id, ":\n", stage_file, "\n", sep = "")
-      atlas_int <- readRDS(stage_file)
-      stage_obj_list[[stage_name]] <- atlas_int
+      atlas_tmp <- readRDS(stage_file)
+      stage_obj_list[[stage_name]] <- atlas_tmp
       next
     }
-
+    
     options(future.globals.maxSize = 300 * 1024^3)
-
+    
     filtered_list <- PrepSCTIntegration(
       object.list = filtered_list,
       anchor.features = features,
       verbose = FALSE
     )
-
+    
     gc()
-
+    
     anchors <- FindIntegrationAnchors(
       object.list = filtered_list,
       normalization.method = "SCT",
@@ -276,40 +437,52 @@ if (file.exists(stage_list_file)) {
       reduction = "rpca",
       dims = 1:params$dims_use
     )
-
+    
     gc()
-
-    atlas_int <- IntegrateData(
+    
+    atlas_tmp <- IntegrateData(
       anchorset = anchors,
       normalization.method = "SCT",
       dims = 1:params$dims_use
     )
-
+    
     gc()
-
-    DefaultAssay(atlas_int) <- "integrated"
-    atlas_int <- RunPCA(atlas_int, npcs = params$dims_use, verbose = FALSE)
-    atlas_int <- RunUMAP(atlas_int, reduction = "pca", dims = 1:params$dims_use)
-    atlas_int <- FindNeighbors(atlas_int, reduction = "pca", dims = 1:params$dims_use)
-    atlas_int <- FindClusters(
-      atlas_int,
+    
+    DefaultAssay(atlas_tmp) <- "integrated"
+    atlas_tmp <- RunPCA(atlas_tmp, npcs = params$dims_use, verbose = FALSE)
+    atlas_tmp <- RunUMAP(atlas_tmp, reduction = "pca", dims = 1:params$dims_use)
+    atlas_tmp <- FindNeighbors(atlas_tmp, reduction = "pca", dims = 1:params$dims_use)
+    atlas_tmp <- FindClusters(
+      atlas_tmp,
       resolution = params$clustering_resolutions,
       algorithm = 4
     )
+    
+    atlas_tmp <- clean_sample_metadata(
+      obj = atlas_tmp,
+      sample_id_col = params$sample_id_col,
+      sample_key = sample_key
+    )
 
-    stage_obj_list[[stage_name]] <- atlas_int
-
+    atlas_tmp <- clean_stage_metadata(
+      obj = atlas_tmp,
+      stage_id_col = params$stage_col,
+      stage_key = stage_key
+    )
+    
+    stage_obj_list[[stage_name]] <- atlas_tmp
+    
     if (isTRUE(params$save_intermediate_files)) {
-      saveRDS(atlas_int, file = stage_file)
+      saveRDS(atlas_tmp, file = stage_file)
     }
-
+    
     gc()
   }
-
+  
   if (length(stage_obj_list) == 0) {
     stop("No stage-specific integrations were produced.")
   }
-
+  
   if (isTRUE(params$save_intermediate_files)) {
     saveRDS(stage_obj_list, file = stage_list_file)
   }
@@ -318,6 +491,10 @@ if (file.exists(stage_list_file)) {
 if (length(stage_obj_list) == 0) {
   stop("No stage-specific integrations were produced.")
 }
+
+stage_obj_list <- lapply(stage_obj_list, clean_sample_metadata,
+                         sample_id_col = params$sample_id_col,
+                         sample_key = sample_key)
 
 stage_summary_df <- bind_rows(lapply(names(stage_obj_list), function(stage_name) {
   obj <- stage_obj_list[[stage_name]]
@@ -342,10 +519,43 @@ kable(stage_summary_df, caption = "Summary of stage-specific integration outputs
 ### Stage-specific UMAPs
 
 ```{r stage_specific_umaps, echo=TRUE, fig.width=12, fig.height=4.5}
+## Sanitize sample and stage IDs first
+
 stage_umap_plots <- lapply(names(stage_obj_list), function(stage_name) {
   obj <- stage_obj_list[[stage_name]]
-  DimPlot(obj, reduction = "umap", group.by = params$sample_id_col) +
-    ggtitle(paste0("Stage integration: ", stage_name))
+  plot_title <- stage_key$CleanStageID[stage_key$RawStageID == stage_name]
+  
+  p <- DimPlot(
+    obj,
+    reduction = "umap",
+    group.by = "CleanSampleID",
+    cols = sample_colors,
+    shuffle = TRUE,
+  ) +
+#    ggtitle(paste0("Stage integration: ", stage_name)) +
+    theme_no_axes +
+    # theme_classic(base_size = 11) +
+    # theme(
+    #   plot.title = element_text(face = "bold", hjust = 0.5),
+    #   legend.title = element_blank()
+    # ) +
+    coord_equal()
+  
+  p <- add_umap_compass(p, hjust_x = -0.02)
+  p <- p + ggtitle(plot_title)
+
+  if (isTRUE(params$save_figures)) {
+    save_publication_plot(
+      plot_obj = p,
+      file_stub = paste0("stage_umap_by_sample_", stage_name),
+      out_dir = figure_dir,
+      width = 8,
+      height = 5,
+      dpi = params$figure_dpi
+    )
+  }
+  
+  p
 })
 
 wrap_plots(stage_umap_plots)
@@ -356,12 +566,33 @@ wrap_plots(stage_umap_plots)
 ```{r stage_specific_cluster_umaps, echo=TRUE, fig.width=12, fig.height=4.5}
 stage_cluster_plots <- lapply(names(stage_obj_list), function(stage_name) {
   obj <- stage_obj_list[[stage_name]]
-  default_cluster_col <- grep("_snn_res\\.", colnames(obj@meta.data), value = TRUE)[1]
+  default_cluster_col <- params$cluster_col
+  plot_title <- stage_key$StageIDClean[stage_key$StageID == stage_name]
   if (is.na(default_cluster_col) || is.null(default_cluster_col)) {
-    return(ggplot() + ggtitle(paste0(stage_name, ": no cluster column found")))
+    return(ggplot() + ggtitle(paste0(plot_title, ": no cluster column found")))
   }
-  DimPlot(obj, reduction = "umap", group.by = default_cluster_col, label = TRUE, repel = TRUE) +
-    ggtitle(paste0("Clusters: ", stage_name))
+  
+  p <- DimPlot(obj, reduction = "umap", group.by = default_cluster_col, label = TRUE, repel = TRUE) +
+    ggtitle(paste0("Clusters: ", plot_title)) +
+#    theme_classic(base_size = 11) +
+#    theme(plot.title = element_text(face = "bold", hjust = 0.5)) +
+    coord_equal() +
+    theme_no_axes
+  
+  p <- add_umap_compass(p, hjust_x = -0.02)
+
+  if (isTRUE(params$save_figures)) {
+    save_publication_plot(
+      plot_obj = p,
+      file_stub = paste0("stage_umap_by_cluster_", stage_name),
+      out_dir = figure_dir,
+      width = 8,
+      height = 5,
+      dpi = params$figure_dpi
+    )
+  }
+  
+  p
 })
 
 wrap_plots(stage_cluster_plots)
@@ -374,6 +605,11 @@ adult_idx <- which(names(sample_list) %in% params$adult_reference_samples)
 
 adult_ref_table <- data.frame(
   sample_id = names(sample_list),
+  clean_sample_id = dplyr::recode(
+    names(sample_list),
+    !!!setNames(sample_key$CleanSampleID, sample_key$RawSampleID),
+    .default = names(sample_list)
+  ),
   is_reference = names(sample_list) %in% params$adult_reference_samples,
   stringsAsFactors = FALSE
 )
@@ -421,17 +657,17 @@ if (file.exists(out_file_name)) {
     reduction = "rpca",
     dims = 1:params$dims_use
   )
-
+  
   gc()
-
+  
   atlas_int <- IntegrateData(
     anchorset = anchors,
     normalization.method = "SCT",
     dims = 1:params$dims_use
   )
-
+  
   gc()
-
+  
   DefaultAssay(atlas_int) <- "integrated"
   atlas_int <- RunPCA(atlas_int, npcs = params$dims_use, verbose = FALSE)
   atlas_int <- RunUMAP(atlas_int, reduction = "pca", dims = 1:params$dims_use)
@@ -441,13 +677,27 @@ if (file.exists(out_file_name)) {
     resolution = params$clustering_resolutions,
     algorithm = 4
   )
+  
+  atlas_int <- clean_sample_metadata(
+    obj = atlas_int,
+    sample_id_col = params$sample_id_col,
+    sample_key = sample_key
+  )
+
+  atlas_int <- clean_stage_metadata(
+    obj = atlas_int,
+    stage_id_col = params$stage_id,
+    stage_key = stage_key
+  )
 
   if (isTRUE(params$save_intermediate_files)) {
     saveRDS(atlas_int, file = out_file_name)
   }
-
+  
   gc()
 }
+
+
 ```
 
 ### Integrated atlas summary
@@ -470,11 +720,54 @@ kable(atlas_summary, caption = "Summary of the adult-anchored integrated atlas")
 ### Integrated atlas UMAP by stage and sample
 
 ```{r integrated_atlas_umaps, echo=TRUE, fig.width=12, fig.height=4.5}
-p_stage <- DimPlot(atlas_int, reduction = "umap", group.by = params$stage_col) +
-  ggtitle("Integrated atlas colored by stage")
 
-p_sample <- DimPlot(atlas_int, reduction = "umap", group.by = params$sample_id_col) +
-  ggtitle("Integrated atlas colored by sample")
+p_stage <- DimPlot(atlas_int,
+                   reduction = "umap",
+                   group.by = params$stage_col,
+                       cols = stage_colors) +
+  ggtitle("Integrated atlas - stage") +
+  theme_classic(base_size = 11) +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5)) +
+  coord_equal() +
+  theme_no_axes
+  
+  p_stage <- add_umap_compass(p_stage, hjust_x = -0.02)
+
+p_sample <- DimPlot(
+  atlas_int,
+  reduction = "umap",
+  group.by = "CleanSampleID",
+  cols = sample_colors
+) +
+  ggtitle("Integrated atlas - samples") +
+  theme_classic(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.title = element_blank()
+  ) +
+  coord_equal()
+
+  p_sample <- add_umap_compass(p_sample, hjust_x = -0.02)
+
+
+if (isTRUE(params$save_figures)) {
+  save_publication_plot(
+    plot_obj = p_stage,
+    file_stub = "integrated_atlas_umap_by_stage",
+    out_dir = figure_dir,
+    width = 8,
+    height = 5,
+    dpi = params$figure_dpi
+  )
+  save_publication_plot(
+    plot_obj = p_sample,
+    file_stub = "integrated_atlas_umap_by_sample",
+    out_dir = figure_dir,
+    width = 8,
+    height = 5,
+    dpi = params$figure_dpi
+  )
+}
 
 p_stage + p_sample
 ```
@@ -482,11 +775,34 @@ p_stage + p_sample
 ### Integrated atlas clusters
 
 ```{r integrated_atlas_clusters, echo=TRUE, fig.width=7, fig.height=5}
-default_cluster_col <- grep("_snn_res\\.", colnames(atlas_int@meta.data), value = TRUE)[1]
+default_cluster_col <- params$cluster_col
 
 if (!is.na(default_cluster_col) && !is.null(default_cluster_col)) {
-  DimPlot(atlas_int, reduction = "umap", group.by = default_cluster_col, label = TRUE, repel = TRUE) +
-    ggtitle(paste0("Integrated atlas clusters (", default_cluster_col, ")"))
+  p_clusters <- DimPlot(atlas_int,
+                        reduction = "umap",
+                        group.by = default_cluster_col,
+                        label = TRUE,
+                        repel = TRUE) +
+    ggtitle(paste0("Integrated atlas clusters (", default_cluster_col, ")")) +
+    theme_classic(base_size = 11) +
+    theme(plot.title = element_text(face = "bold", hjust = 0.5)) +
+    coord_equal() +
+    theme_no_axes
+  
+  p_clusters <- add_umap_compass(p_clusters, hjust_x = -0.02)
+
+  if (isTRUE(params$save_figures)) {
+    save_publication_plot(
+      plot_obj = p_clusters,
+      file_stub = paste0("integrated_atlas_clusters_", gsub("\\.", "_", default_cluster_col)),
+      out_dir = figure_dir,
+      width = 8,
+      height = 5,
+      dpi = params$figure_dpi
+    )
+  }
+  
+  p_clusters
 }
 ```
 
@@ -497,7 +813,7 @@ if (!is.na(default_cluster_col) && !is.null(default_cluster_col)) {
   cluster_counts <- atlas_int@meta.data %>%
     count(.data[[default_cluster_col]], name = "n_cells") %>%
     arrange(desc(n_cells))
-
+  
   kable(cluster_counts, caption = paste0("Cluster sizes for ", default_cluster_col))
 }
 ```
@@ -533,6 +849,17 @@ output_files <- data.frame(
 )
 
 kable(output_files, caption = "Output files produced by this report")
+```
+
+```{r figure_file_summary, echo=TRUE}
+saved_figures <- list.files(figure_dir, full.names = FALSE)
+
+figure_table <- data.frame(
+  figure_file = saved_figures,
+  stringsAsFactors = FALSE
+)
+
+kable(figure_table, caption = "Publication-quality integration figures saved to disk")
 ```
 
 ## Session info
