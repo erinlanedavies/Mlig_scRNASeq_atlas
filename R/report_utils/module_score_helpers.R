@@ -31,24 +31,59 @@ read_marker_table <- function(path,
   df
 }
 
-default_celltype_name_map <- function() {
-  c(
-    "anchor_cell_of_adhesive_organ" = "anchor_cell_of_adhesive_organ",
-    "cement_gland_cell" = "cement_gland_cell",
-    "epidermal_secretory_cell" = "epidermal_secretory",
-    "female_antrum" = "female_antrum",
-    "female_germline_ovary" = "female_germline_ovary",
-    "gut" = "gut",
-    "gut_specialized_cell" = "gut_specialized",
-    "male_germline_testis" = "male_germline_testis",
-    "muscle" = "muscle",
-    "nervous_system" = "nervous_system",
-    "prostate" = "prostate",
-    "rhabdite-containing_cell" = "rhabdite",
-    "secretory_cell_of_adhesive_organ" = "secretory_cell_of_adhesive_organ",
-    "stem_cells_progenitors" = "progenitor",
-    "epidermal" = "epidermal"
+default_celltype_name_map <- function(df,
+                                      from_col = "Cell_tissue_type",
+                                      to_col = "CleanModuleID") {
+  if (!is.data.frame(df)) {
+    stop("df must be a data.frame.")
+  }
+
+  if (!all(c(from_col, to_col) %in% colnames(df))) {
+    stop("Columns not found in df: ", from_col, ", ", to_col)
+  }
+
+  map_df <- df[, c(from_col, to_col), drop = FALSE]
+  colnames(map_df) <- c("from", "to")
+
+  map_df$from <- as.character(map_df$from)
+  map_df$to   <- as.character(map_df$to)
+
+  # Remove missing or empty entries
+  map_df <- map_df[
+    !is.na(map_df$from) & !is.na(map_df$to) &
+      nzchar(map_df$from) & nzchar(map_df$to),
+    ,
+    drop = FALSE
+  ]
+
+  # Gene-level tables often repeat the same mapping many times
+  map_df <- unique(map_df)
+
+  # Detect conflicting mappings:
+  # one old label pointing to multiple standardized labels
+  conflict_df <- aggregate(
+    to ~ from,
+    data = map_df,
+    FUN = function(x) length(unique(x))
   )
+
+  bad_from <- conflict_df$from[conflict_df$to > 1]
+
+  if (length(bad_from) > 0) {
+    conflict_details <- lapply(bad_from, function(x) {
+      vals <- unique(map_df$to[map_df$from == x])
+      paste0(x, " -> {", paste(vals, collapse = ", "), "}")
+    })
+
+    stop(
+      "Conflicting mappings found. Each old label must map to exactly one new label:\n",
+      paste(conflict_details, collapse = "\n")
+    )
+  }
+
+  # Safe to collapse to named vector
+  out_df <- map_df[!duplicated(map_df$from), , drop = FALSE]
+  stats::setNames(out_df$to, out_df$from)
 }
 
 build_marker_gene_list <- function(marker_df,
@@ -98,7 +133,7 @@ module_score_overlap_table <- function(obj,
 add_module_scores_named <- function(obj,
                                     gene_lists,
                                     assay = "RNA",
-                                    prefix = "MS_",
+                                    prefix = "",
                                     nbin = 24,
                                     ctrl = 100,
                                     seed = 1) {
@@ -150,6 +185,54 @@ find_cluster_column <- function(obj, resolution = 0.6) {
   return(NA_character_)
 }
 
+#plot_module_feature_grid <- function(obj,
+#                                     module_cols,
+#                                     reduction = "umap",
+#                                     ncol = 5,
+#                                     pt.size = 0.05,
+#                                     min.cutoff = "q05",
+#                                     max.cutoff = "q95",
+#                                     order = TRUE,
+#                                     cols = c("lightgrey", "darkred")) {
+#  if (!inherits(obj, "Seurat")) {
+#    stop("obj must be a Seurat object.")
+#  }
+#
+#  if (!"RNA" %in% Assays(obj)) {
+#    stop("RNA assay not found in object.")
+#  }
+#
+#  DefaultAssay(obj) <- "RNA"
+#
+#  plots <- Seurat::FeaturePlot(
+#    object = obj,
+#    features = module_cols,
+#    reduction = reduction,
+#    combine = FALSE,
+#    pt.size = pt.size,
+#    min.cutoff = min.cutoff,
+#    max.cutoff = max.cutoff,
+#    order = order,
+#    cols = cols
+#  )
+#
+#  plots <- lapply(seq_along(plots), function(i) {
+#    plots[[i]] +
+#      ggplot2::ggtitle(module_cols[i]) +
+#      ggplot2::coord_fixed() +
+#      ggplot2::theme_classic(base_size = 11) +
+#      ggplot2::theme(
+#        plot.title = ggplot2::element_text(face = "bold", hjust = 0.5),
+#        axis.title = ggplot2::element_blank(),
+#        axis.text = ggplot2::element_blank(),
+#        axis.ticks = ggplot2::element_blank(),
+#        aspect.ratio = 1
+#      )
+#  })
+#
+#  patchwork::wrap_plots(plots, ncol = ncol)
+#}
+
 plot_module_feature_grid <- function(obj,
                                      module_cols,
                                      reduction = "umap",
@@ -167,20 +250,34 @@ plot_module_feature_grid <- function(obj,
     stop("RNA assay not found in object.")
   }
 
+  # Make sure module score columns exist in metadata before plotting
+  missing_cols <- setdiff(module_cols, colnames(obj@meta.data))
+  if (length(missing_cols) > 0) {
+    stop(
+      "The following module score columns are missing from obj@meta.data: ",
+      paste(missing_cols, collapse = ", ")
+    )
+  }
+
   DefaultAssay(obj) <- "RNA"
 
-  plots <- Seurat::FeaturePlot(
-    object = obj,
+  # scCustomize::FeaturePlot_scCustom uses:
+  # - seurat_object instead of object
+  # - colors_use instead of cols
+  # It supports min.cutoff / max.cutoff, pt.size, reduction, and order.
+  plots <- scCustomize::FeaturePlot_scCustom(
+    seurat_object = obj,
     features = module_cols,
     reduction = reduction,
     combine = FALSE,
     pt.size = pt.size,
     min.cutoff = min.cutoff,
     max.cutoff = max.cutoff,
-    order = order,
-    cols = cols
+    order = order#,
+#    colors_use = cols
   )
 
+  # Standardize appearance to match the rest of the report
   plots <- lapply(seq_along(plots), function(i) {
     plots[[i]] +
       ggplot2::ggtitle(module_cols[i]) +
@@ -271,7 +368,7 @@ validate_module_score_columns <- function(obj, module_cols) {
 plot_module_clustree <- function(obj,
                                  module_col,
                                  prefix = "integrated_snn_res.",
-                                 node_colour_aggr = "mean",
+                                 node_colour_aggr = "median",
                                  title = NULL) {
   if (!inherits(obj, "Seurat")) {
     stop("obj must be a Seurat object.")
@@ -310,7 +407,7 @@ save_module_clustree_series <- function(obj,
                                         height = 6,
                                         dpi = 600,
                                         print_plots = TRUE,
-					...) {
+					aggr_fun = "median") {
   validate_module_score_columns(obj, module_cols)
 
   plot_list <- vector("list", length(module_cols))
@@ -328,7 +425,7 @@ save_module_clustree_series <- function(obj,
       obj = obj,
       module_col = module_col,
       prefix = prefix,
-      node_colour_aggr = "mean",
+      node_colour_aggr = aggr_fun,
       title = this_title
     )
 

@@ -14,7 +14,7 @@ params:
   project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas"
   stage_integrated_list_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/srt_list_integrated.rds"
   integrated_atlas_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/srt_integrated_all.rds"
-  marker_gene_table: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/data/metadata/literature_marker_genes.tsv"
+  marker_gene_table: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/data/metadata/literature_marker_genes2.tsv"
   sample_id_col: "sample_id"
   stage_col: "Stage"
   save_intermediate_files: TRUE
@@ -62,6 +62,7 @@ set.seed(params$seed)
 ### Loading libraries
 
 ```{r load_libraries, echo=TRUE}
+
 library(Seurat)
 library(sctransform)
 library(scCustomize)
@@ -103,7 +104,8 @@ source_report_functions(
   files    = c(
     "io.R",
     "seurat.R",
-    "module_score_helpers.R"
+    "module_score_helpers.R",
+    "dotplot_helpers.R"
   )
 )
 ```
@@ -136,6 +138,16 @@ if (!file.exists(params$integrated_atlas_file)) {
 stage_obj_list <- readRDS(params$stage_integrated_list_file)
 atlas_int <- readRDS(params$integrated_atlas_file)
 
+# Changing default assays to RNA
+
+## integrated atlas 
+DefaultAssay(atlas_int) <- "RNA"
+
+## stage-specific
+for (name in names(stage_obj_list)) {
+  DefaultAssay(stage_obj_list[[name]]) <- "RNA"
+}
+
 cat("Loaded", length(stage_obj_list), "stage-specific integrated objects.\n")
 cat("Integrated atlas dimensions (features x cells):\n")
 print(dim(atlas_int))
@@ -156,7 +168,16 @@ kable(marker_summary, caption = "Number of marker genes per literature-defined c
 ```
 
 ```{r build_marker_lists, echo=TRUE}
-marker_genes_list <- build_marker_gene_list(marker_genes)
+
+name_map <- default_celltype_name_map(df = marker_genes,
+                                      to_col = "CleanModuleID",
+                                      from_col = "Cell_tissue_type")
+
+marker_genes_list <- build_marker_gene_list(marker_genes,
+                                            gene_col = "Gene_ID",
+                                            celltype_col = "Cell_tissue_type",
+                                            name_map = name_map
+                                            )
 
 marker_list_summary <- data.frame(
   module = names(marker_genes_list),
@@ -212,7 +233,7 @@ if (file.exists(stage_scores_file) && file.exists(atlas_scores_file)) {
       obj = obj,
       gene_lists = marker_genes_list,
       assay = "RNA",
-      prefix = "MS_",
+      prefix = "",
       seed = params$seed
     )
   })
@@ -221,7 +242,7 @@ if (file.exists(stage_scores_file) && file.exists(atlas_scores_file)) {
     obj = atlas_int,
     gene_lists = marker_genes_list,
     assay = "RNA",
-    prefix = "MS_",
+    prefix = "",
     seed = params$seed
   )
 
@@ -233,7 +254,7 @@ if (file.exists(stage_scores_file) && file.exists(atlas_scores_file)) {
 ```
 
 ```{r module_score_columns, echo=TRUE}
-module_score_cols <- grep("^MS_", colnames(atlas_int@meta.data), value = TRUE)
+module_score_cols <- unique(marker_genes$CleanModuleID)
 
 module_score_table <- data.frame(
   module_score_column = module_score_cols,
@@ -248,7 +269,7 @@ kable(module_score_table, caption = "Module score columns added to the Seurat me
 ```{r stage_module_score_summary, echo=TRUE}
 stage_module_summary <- bind_rows(lapply(names(stage_obj_list), function(nm) {
   obj <- stage_obj_list[[nm]]
-  cols <- grep("^MS_", colnames(obj@meta.data), value = TRUE)
+  cols <- module_score_cols
   data.frame(
     stage_object = nm,
     n_module_score_columns = length(cols),
@@ -265,12 +286,31 @@ kable(stage_module_summary, caption = "Summary of stage-specific objects after a
 ## Feature plots by stage
 
 ```{r stage_feature_plots, echo=TRUE, fig.width=14, fig.height=10}
+
+plot_order <- c(
+  "Progenitor",
+  "Neural",
+  "Muscle",
+  "Gut",
+  "Secretory Gut",
+  "Rhabdite-Containing",
+  "Epidermal Secretory",
+  "Secretory Cell of Adhesive Organ",
+  "Cement Gland",
+  "Prostate",
+  "Ovary",
+  "Testis"
+)
+
+# Exclude female antrum
+plot_order <- intersect(plot_order, module_score_cols)
+
 stage_feature_plots <- lapply(names(stage_obj_list), function(nm) {
   save_module_feature_plot(
     obj = stage_obj_list[[nm]],
-    module_cols = module_score_cols,
+    module_cols = plot_order,
     reduction = "umap",
-    ncol = 5,
+    ncol = 4,
     pt.size = 0.05,
     title = paste0("Module scores: ", nm),
     file_stub = paste0("featureplot_module_scores_", nm),
@@ -278,7 +318,9 @@ stage_feature_plots <- lapply(names(stage_obj_list), function(nm) {
     save_figures = params$save_figures,
     width = 16,
     height = 11,
-    dpi = params$figure_dpi
+    dpi = params$figure_dpi,
+    min.cutoff = 0.1
+#    order = plot_order
   )
 })
 
@@ -322,7 +364,7 @@ for (p in stage_dot_plots) print(p)
 ```{r integrated_atlas_feature_plot, echo=TRUE, fig.width=14, fig.height=10}
 p_atlas_feature <- save_module_feature_plot(
   obj = atlas_int,
-  module_cols = module_score_cols,
+  module_cols = plot_order,
   reduction = "umap",
   ncol = 5,
   pt.size = 0.05,
@@ -330,22 +372,22 @@ p_atlas_feature <- save_module_feature_plot(
   file_stub = "featureplot_module_scores_integrated_atlas",
   out_dir = figure_dir,
   save_figures = params$save_figures,
-  width = 16,
-  height = 11,
+  width = 14,
+  height = 10,
   dpi = params$figure_dpi
 )
 
 p_atlas_feature
 ```
 
-```{r integrated_atlas_dotplots, echo=TRUE, fig.width=12, fig.height=6}
+```{r integrated_atlas_dotplots, echo=TRUE, fig.width=14, fig.height=7}
 atlas_cluster_col <- find_cluster_column(atlas_int, params$dotplot_resolution)
 
 p_atlas_dot_cluster <- save_module_dotplot(
   obj = atlas_int,
-  module_cols = module_score_cols,
+  module_cols = plot_order,
   group.by = atlas_cluster_col,
-  title = paste0("Integrated atlas module score dot plot by cluster (", atlas_cluster_col, ")"),
+  title = paste0("Module score dot plot by cluster (", atlas_cluster_col, ")"),
   file_stub = paste0(
     "dotplot_module_scores_integrated_atlas_",
     gsub("\\\\.", "_", atlas_cluster_col)
@@ -359,8 +401,8 @@ p_atlas_dot_cluster <- save_module_dotplot(
 
 p_atlas_dot_stage <- save_module_dotplot(
   obj = atlas_int,
-  module_cols = module_score_cols,
-  group.by = params$stage_col,
+  module_cols = plot_order,
+  group.by = "CleanStageID",
   title = "Integrated atlas module score dot plot by stage",
   file_stub = "dotplot_module_scores_integrated_atlas_by_stage",
   out_dir = figure_dir,
@@ -397,20 +439,20 @@ invisible(lapply(names(stage_obj_list), function(nm) {
 
 ## Clustree plots for integrated atlas
 
-```{r integrated_atlas_clustree_plots, echo=TRUE, fig.width=16, fig.height=6}
+```{r integrated_atlas_clustree_plots, echo=TRUE, fig.width=16, fig.height=10}
 save_module_clustree_series(
   obj = atlas_int,
-  module_cols = module_score_cols,
+  module_cols = plot_order,
   prefix = params$clustree_prefix,
   plot_title_prefix = "Integrated atlas",
-  file_stub_prefix = "clustree_integrated_atlas_mean_",
+  file_stub_prefix = "clustree_integrated_atlas_median",
   out_dir = figure_dir,
   save_figures = params$save_figures,
   width = 16,
-  height = 6,
+  height = 10,
   dpi = params$figure_dpi,
   print_plots = TRUE,
-  node_colour_aggr = "mean"
+  aggr_fun = "median"
 )
 ```
 

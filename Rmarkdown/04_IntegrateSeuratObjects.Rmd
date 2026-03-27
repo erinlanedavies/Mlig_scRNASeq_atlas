@@ -30,13 +30,13 @@ params:
   out_dir: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/"
   seed: 42
 ---
-  
+
 # Description
-  
+
 Integrate Seurat objects.
 
 This template is designed to work with the outputs of the previous step (**03_ComputeSCT.Rmd**) and performs two integration procedures:
-  
+
 - integrate replicates within each stage independently
 - integrate all samples using adult samples as references
 
@@ -80,7 +80,7 @@ library(leidenbase)
 ### Parameters
 
 Parameters used to generate this report:
-  
+
 ```{r print_parameters, echo=TRUE}
 str(params)
 ```
@@ -372,6 +372,9 @@ kable(feature_summary, caption = "Number of integration features selected across
 ```
 
 ```{r preprocess_for_integration, echo=TRUE}
+
+# get PCs for each object as described in https://satijalab.org/seurat/articles/integration_rpca.html
+
 sample_list <- lapply(
   X = sample_list,
   FUN = function(x) {
@@ -463,7 +466,7 @@ if (file.exists(stage_list_file)) {
       sample_id_col = params$sample_id_col,
       sample_key = sample_key
     )
-
+    
     atlas_tmp <- clean_stage_metadata(
       obj = atlas_tmp,
       stage_id_col = params$stage_col,
@@ -519,7 +522,6 @@ kable(stage_summary_df, caption = "Summary of stage-specific integration outputs
 ### Stage-specific UMAPs
 
 ```{r stage_specific_umaps, echo=TRUE, fig.width=12, fig.height=4.5}
-## Sanitize sample and stage IDs first
 
 stage_umap_plots <- lapply(names(stage_obj_list), function(stage_name) {
   obj <- stage_obj_list[[stage_name]]
@@ -532,7 +534,7 @@ stage_umap_plots <- lapply(names(stage_obj_list), function(stage_name) {
     cols = sample_colors,
     shuffle = TRUE,
   ) +
-#    ggtitle(paste0("Stage integration: ", stage_name)) +
+    #    ggtitle(paste0("Stage integration: ", stage_name)) +
     theme_no_axes +
     # theme_classic(base_size = 11) +
     # theme(
@@ -543,7 +545,7 @@ stage_umap_plots <- lapply(names(stage_obj_list), function(stage_name) {
   
   p <- add_umap_compass(p, hjust_x = -0.02)
   p <- p + ggtitle(plot_title)
-
+  
   if (isTRUE(params$save_figures)) {
     save_publication_plot(
       plot_obj = p,
@@ -567,20 +569,20 @@ wrap_plots(stage_umap_plots)
 stage_cluster_plots <- lapply(names(stage_obj_list), function(stage_name) {
   obj <- stage_obj_list[[stage_name]]
   default_cluster_col <- params$cluster_col
-  plot_title <- stage_key$StageIDClean[stage_key$StageID == stage_name]
+  plot_title <- stage_key$CleanStageID[stage_key$RawStageID == stage_name]
   if (is.na(default_cluster_col) || is.null(default_cluster_col)) {
     return(ggplot() + ggtitle(paste0(plot_title, ": no cluster column found")))
   }
   
   p <- DimPlot(obj, reduction = "umap", group.by = default_cluster_col, label = TRUE, repel = TRUE) +
     ggtitle(paste0("Clusters: ", plot_title)) +
-#    theme_classic(base_size = 11) +
-#    theme(plot.title = element_text(face = "bold", hjust = 0.5)) +
+    #    theme_classic(base_size = 11) +
+    #    theme(plot.title = element_text(face = "bold", hjust = 0.5)) +
     coord_equal() +
     theme_no_axes
   
   p <- add_umap_compass(p, hjust_x = -0.02)
-
+  
   if (isTRUE(params$save_figures)) {
     save_publication_plot(
       plot_obj = p,
@@ -625,7 +627,7 @@ if (length(adult_idx) == 0) {
 sample_list_all <- lapply(
   X = sample_list,
   FUN = function(x) {
-    x <- RunPCA(x, verbose = FALSE)
+    x <- RunPCA(x, verbose = FALSE, features = features)
     return(x)
   }
 )
@@ -683,13 +685,13 @@ if (file.exists(out_file_name)) {
     sample_id_col = params$sample_id_col,
     sample_key = sample_key
   )
-
+  
   atlas_int <- clean_stage_metadata(
     obj = atlas_int,
-    stage_id_col = params$stage_id,
+    stage_id_col = params$stage_col,
     stage_key = stage_key
   )
-
+  
   if (isTRUE(params$save_intermediate_files)) {
     saveRDS(atlas_int, file = out_file_name)
   }
@@ -723,22 +725,22 @@ kable(atlas_summary, caption = "Summary of the adult-anchored integrated atlas")
 
 p_stage <- DimPlot(atlas_int,
                    reduction = "umap",
-                   group.by = params$stage_col,
-                       cols = stage_colors) +
+                   group.by = "CleanStageID",
+                   cols = stage_colors,
+                   shuffle = TRUE) +
   ggtitle("Integrated atlas - stage") +
   theme_classic(base_size = 11) +
   theme(plot.title = element_text(face = "bold", hjust = 0.5)) +
   coord_equal() +
   theme_no_axes
-  
-  p_stage <- add_umap_compass(p_stage, hjust_x = -0.02)
 
-p_sample <- DimPlot(
-  atlas_int,
-  reduction = "umap",
-  group.by = "CleanSampleID",
-  cols = sample_colors
-) +
+p_stage <- add_umap_compass(p_stage, hjust_x = -0.02)
+
+p_sample <- DimPlot(atlas_int,
+                    reduction = "umap",
+                    group.by = "CleanSampleID",
+                    cols = sample_colors,
+                    shuffle = TRUE) +
   ggtitle("Integrated atlas - samples") +
   theme_classic(base_size = 11) +
   theme(
@@ -747,8 +749,7 @@ p_sample <- DimPlot(
   ) +
   coord_equal()
 
-  p_sample <- add_umap_compass(p_sample, hjust_x = -0.02)
-
+p_sample <- add_umap_compass(p_sample, hjust_x = -0.02)
 
 if (isTRUE(params$save_figures)) {
   save_publication_plot(
@@ -790,7 +791,7 @@ if (!is.na(default_cluster_col) && !is.null(default_cluster_col)) {
     theme_no_axes
   
   p_clusters <- add_umap_compass(p_clusters, hjust_x = -0.02)
-
+  
   if (isTRUE(params$save_figures)) {
     save_publication_plot(
       plot_obj = p_clusters,
