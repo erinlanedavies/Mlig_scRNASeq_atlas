@@ -1,0 +1,171 @@
+TranscriptID	Module	CleanModuleID	Homolog	Homolog_species	M_lignano_gene_symbol
+Mlig455_010811	anchor cell in adhesive organ	Anchor Cell of Adhesive Organ	LMNB1	Homo_sapiens	macif1
+Mlig455_027628	anchor cell in adhesive organ	Anchor Cell of Adhesive Organ	CALM6	Homo_sapiens	-
+Mlig455_033230	anchor cell in adhesive organ	Anchor Cell of Adhesive Organ	LMNA	Homo_sapiens	-
+Mlig455_001454	cement gland cell	Cement Gland	HOXA10	Homo_sapiens	-
+Mlig455_009889	cement gland cell	Cement Gland	-	-	-
+Mlig455_029729	cement gland cell	Cement Gland	ZAN	Homo_sapiens	-
+Mlig455_034074	cement gland cell	Cement Gland	FCGBP	Homo_sapiens	-
+Mlig455_038368	cement gland cell	Cement Gland	-	-	-
+Mlig455_041329	cement gland cell	Cement Gland	-	-	-
+Mlig455_060952	cement gland cell	Cement Gland	agrin	Mus_musculus	-
+Mlig455_068287	cement gland cell	Cement Gland	-	-	-
+Mlig455_017088	epidermis	Epidermis	SSPO	Homo_sapiens	-
+Mlig455_024110	epidermis	Epidermis	COL12A1	Homo_sapiens	-
+Mlig455_023440	single cells in tail	Single Cells in Tail	FCN3	Homo_sapiens	-
+Mlig455_000390	female antrum	Female Antrum	-	-	-
+Mlig455_004773	female antrum	Female Antrum	-	-	-
+Mlig455_004861	female antrum	Female Antrum	-	-	-
+Mlig455_009026	female antrum	Female Antrum	-	-	-
+Mlig455_016219	female antrum	Female Antrum	-	-	-
+Mlig455_034058	female antrum	Female Antrum	ABLIM1	Homo_sapiens	-
+Mlig455_034512	female antrum	Female Antrum	MFSD5	Homo_sapiens	-
+Mlig455_144293	female antrum	Female Antrum	ECE2	Homo_sapiens	-
+Mlig455_036765	female antrum	Female Antrum	ECE2	Homo_sapiens	-
+Mlig455_041728	female antrum	Female Antrum	GHSR	Homo_sapiens	-
+Mlig455_055788	female antrum	Female Antrum	CUBN	Homo_sapiens	-
+Mlig455_058825	female antrum	Female Antrum	PLA2G10	Homo_sapiens	-
+Mlig455_060175	female antrum	Female Antrum	-	-	-
+Mlig455_066568	female antrum	Female Antrum	CPO	Homo_sapiens	-
+Mlig455_007319	gut	Gut	ACHE	Homo_sapiens	-
+Mlig455_020195	gut	Gut	SLC39A14	Homo_sapiens	-
+Mlig455_022240	gut	Gut	-	-	apob
+Mlig455_029253	gut	Gut	NPC2	Homo_sapiens	-
+Mlig455_031205	gut	Gut	TTPAL	Homo_sapiens	-
+Mlig455_047772	gut	Gut	-	-	-
+Mlig455_048986	gut	Gut	ACHE	Homo_sapiens	-
+Mlig455_058429	gut	Gut	apolipophorin	Drosophila_melanogaster	-
+Mlig455_183771	gut	Gut	-	-	-
+Mlig455_081843	gut secretory	Secretory Gut	PNLIP	Homo_sapiens	-
+Mlig455_005474	gut secretory	Secretory Gut	PNLIP	Homo_sapiens	-
+Mlig455_017550	gut secretory	Secretory Gut	-	-	-
+Mlig455_019540	gut secretory	Secretory Gut	-	-	-
+Mlig455_030884	gut secretory	Secretory Gut	PNLIPRP1	Homo_sapiens	-
+Mlig455_033579	gut secretory	Secretory Gut	PLB1	Homo_sapiens	-
+Mlig455_066090	gut secretory	Secretory Gut	-	-	-
+Mlig455_034550	muscle	Muscle	TNNT2	Homo_sapiens	tnnt2
+Mlig455_049856	muscle	Muscle	MYH6	Homo_sapiens	myh6
+Mlig455_021418	nervous system	Neural	PCSK2	Homo_sapiens	PC2
+Mlig455_026521	nervous system	Neural	SYT1	Homo_sapiens	synaptotagmin
+Mlig455_028180	nervous system	Neural	SYT11	Homo_sapiens	syt11
+Mlig455_066466	nervous system	Neural	SYT2	Homo_sapiens	synaptotagmin
+Mlig455_067233	nervous system	Neural	PCSK2	Homo_sapiens	-
+Mlig455_000126	ovary	Ovary	-	-	-
+Mlig455_004074	ovary	Ovary	CAV1	Homo_sapiens	-
+Mlig455_004244	ovary	Ovary	GLIPR1L1	Homo_sapiens	-
+Mlig455_007607	ovary	Ovary	-	-	-
+Mlig455_010027	ovary	Ovary	Innexin 2	Drosophila_melanogaster	-
+Mlig455_019983	ovary	Ovary	-	-	-
+Mlig455_028845	ovary	Ovary	-	-	-
+Mlig455_034083	ovary	Ovary	COL5A2	Homo_sapiens	-
+Mlig455_038112	ovary	Ovary	-	-	-
+Mlig455_041946	ovary	Ovary	-	-	-
+Mlig455_043768	ovary	Ovary	-	-	-
+Mlig455_044018	ovary	Ovary	BOLL	Homo_sapiens	macbol3
+Mlig455_049948	ovary	Ovary	EIF3K	Homo_sapiens	-
+Mlig455_053929	ovary	Ovary	ERICH1	Homo_sapiens	-
+Mlig455_054167	ovary	Ovary	CABP7	Homo_sapiens	cabp7
+Mlig455_054208	ovary	Ovary	PHTF2	Homo_sapiens	-
+Mlig455_054492	ovary	Ovary	-	-	-
+Mlig455_063332	ovary	Ovary	PIF1	Homo_sapiens	-
+Mlig455_068208	ovary	Ovary	MEX3D	Homo_sapiens	-
+Mlig455_071156	ovary	Ovary	DNAJB4	Homo_sapiens	-
+Mlig455_013029	paired ventral cells	Paired Ventral Cells	-	-	-
+Mlig455_001046	prostate	Prostate	-	-	Mlig-pro1, Mlig-pro29, Mlig-pro36
+Mlig455_005640	prostate	Prostate	oxt	Drosophila_melanogaster	Mlig-pro30
+Mlig455_005672	prostate	Prostate	-	-	Mlig-pro31
+Mlig455_005734	prostate	Prostate	-	-	Mlig-pro5
+Mlig455_006471	prostate	Prostate	-	-	-
+Mlig455_006480	prostate	Prostate	-	-	Mlig-pro10, Mlig-pro66
+Mlig455_006594	prostate	Prostate	-	-	-
+Mlig455_008678	prostate	Prostate	KREMEN1	Homo_sapiens	Mlig-pro22
+Mlig455_011249	prostate	Prostate	-	-	Mlig-pro61
+Mlig455_012226	prostate	Prostate	WSCD2	Homo_sapiens	Mlig-pro24
+Mlig455_014663	prostate	Prostate	-	-	Mlig-pro7
+Mlig455_014740	prostate	Prostate	ANGPTL2	Homo_sapiens	Mlig-pro12, Mlig-pro39
+Mlig455_015738	prostate	Prostate	-	-	Mlig-pro17
+Mlig455_017598	prostate	Prostate	-	-	Mlig-pro67, Mlig-pro75
+Mlig455_018874	prostate	Prostate	-	-	Mlig-pro2
+Mlig455_023708	prostate	Prostate	TMEM41A	Homo_sapiens	Mlig-pro48
+Mlig455_027527	prostate	Prostate	WSCD2	Homo_sapiens	-
+Mlig455_028683	prostate	Prostate	sqv-6	Caenorhabditis_elegans	Mlig-pro16, Mlig-pro26
+Mlig455_028703	prostate	Prostate	sqv-6	Caenorhabditis_elegans	Mlig-pro68
+Mlig455_028878	prostate	Prostate	-	-	Mlig-pro55
+Mlig455_031790	prostate	Prostate	-	-	Mlig-pro33
+Mlig455_035671	prostate	Prostate	-	-	Mlig-pro56
+Mlig455_036141	prostate	Prostate	-	-	Mlig-pro42, Mlig-pro44, Mlig-pro58, Mlig-pro60, Mlig-pro69
+Mlig455_038673	prostate	Prostate	KREMEN2	Homo_sapiens	Mlig-pro4
+Mlig455_042393	prostate	Prostate	ANGPTL6	Homo_sapiens	Mlig-pro13
+Mlig455_042481	prostate	Prostate	SCUBE1	Homo_sapiens	Mlig-pro74
+Mlig455_046098	prostate	Prostate	WSCD2	Homo_sapiens	Mlig-pro37, Mlig-pro46, Mlig-pro63
+Mlig455_046101	prostate	Prostate	WSCD2	Homo_sapiens	Mlig-pro49
+Mlig455_046137	prostate	Prostate	WSCD2	Homo_sapiens	Mlig-pro53, Mlig-pro59, Mlig-pro70
+Mlig455_046139	prostate	Prostate	WSCD2	Homo_sapiens	Mlig-pro52, Mlig-pro65
+Mlig455_052530	prostate	Prostate	WSCD2	Homo_sapiens	Mlig-pro23
+Mlig455_053864	prostate	Prostate	PI16	Homo_sapiens	-
+Mlig455_056827	prostate	Prostate	ANGPTL1	Homo_sapiens	Mlig-pro25
+Mlig455_059462	prostate	Prostate	WSCD2	Homo_sapiens	Mlig-pro9
+Mlig455_059463	prostate	Prostate	-	-	Mlig-pro11, Mlig-pro19, Mlig-pro40
+Mlig455_059477	prostate	Prostate	WSCD2	Homo_sapiens	Mlig-pro28
+Mlig455_059488	prostate	Prostate	-	-	Mlig-pro72
+Mlig455_059489	prostate	Prostate	WSCD2	Homo_sapiens	Mlig-pro20
+Mlig455_060141	prostate	Prostate	SVEP1	Homo_sapiens	Mlig-pro14
+Mlig455_060861	prostate	Prostate	-	-	-
+Mlig455_060904	prostate	Prostate	-	-	-
+Mlig455_061162	prostate	Prostate	R3HDML	Homo_sapiens	-
+Mlig455_062412	prostate	Prostate	-	-	Mlig-pro41, Mlig-pro64
+Mlig455_062414	prostate	Prostate	ANGPTL2	Homo_sapiens	Mlig-pro8, Mlig-pro73
+Mlig455_062535	prostate	Prostate	-	-	Mlig-pro18, Mlig-pro35
+Mlig455_056893	rhabdite	Rhabdite-containing	-	-	-
+Mlig455_056926	rhabdite	Rhabdite-containing	-	-	-
+Mlig455_095225	rhabdite	Rhabdite-containing	GSTA3	Homo_sapiens	-
+Mlig455_040314	secretory gland cell in adhesive organ	Secretory Cell of Adhesive Organ	NOTCH2	Homo_sapiens	Mlig-ap1
+Mlig455_062382	secretory gland cell in adhesive organ	Secretory Cell of Adhesive Organ	DDI2	Homo_sapiens	-
+Mlig455_066518	secretory gland cell in adhesive organ	Secretory Cell of Adhesive Organ	FBN2	Homo_sapiens	-
+Mlig455_066519	secretory gland cell in adhesive organ	Secretory Cell of Adhesive Organ	-	-	-
+Mlig455_068240	secretory gland cell in adhesive organ	Secretory Cell of Adhesive Organ	SSPO	Homo_sapiens	-
+Mlig455_024496	stylet	Stylet	-	-	-
+Mlig455_010333	stylet, regenerating	Regenerating Stylet	-	-	Mlig-stylet3
+Mlig455_011501	stylet, regenerating 	Regenerating Stylet	-	-	Mlig-stylet2
+Mlig455_169869	stylet, regenerating 	Regenerating Stylet	-	-	Mlig-stylet1
+Mlig455_000074	testis	Testis	-	-	-
+Mlig455_001859	testis	Testis	PPP1CB	Homo_sapiens	-
+Mlig455_017161	testis	Testis	-	-	Mlig-sperm1
+Mlig455_019792	testis	Testis	-	-	-
+Mlig455_111588	testis	Testis	-	-	-
+Mlig455_020025	testis	Testis	CRISPLD2	Homo_sapiens	-
+Mlig455_022868	testis	Testis	FAM78A	Homo_sapiens	-
+Mlig455_026487	testis	Testis	-	-	-
+Mlig455_028747	testis	Testis	-	-	-
+Mlig455_033443	testis	Testis	-	-	-
+Mlig455_033856	testis	Testis	TTLL10	Homo_sapiens	-
+Mlig455_033958	testis	Testis	DCLK2	Homo_sapiens	-
+Mlig455_035195	testis	Testis	-	-	-
+Mlig455_043943	testis	Testis	Zc3h6	Mus_musculus	-
+Mlig455_044341	testis	Testis	-	-	-
+Mlig455_044579	testis	Testis	PNPO	Homo_sapiens	-
+Mlig455_046680	testis	Testis	HHAT	Homo_sapiens	-
+Mlig455_047766	testis	Testis	-	-	-
+Mlig455_048505	testis	Testis	TTLL10	Homo_sapiens	-
+Mlig455_051156	testis	Testis	DDC	Homo_sapiens	-
+Mlig455_051363	testis	Testis	ELAVL4	Homo_sapiens	Melav2
+Mlig455_051392	testis	Testis	-	-	-
+Mlig455_053614	testis	Testis	CAPN9	Homo_sapiens	-
+Mlig455_053926	testis	Testis	PRKG1	Homo_sapiens	-
+Mlig455_054761	testis	Testis	CKB	Homo_sapiens	-
+Mlig455_054872	testis	Testis	CALM2	Homo_sapiens	-
+Mlig455_055907	testis	Testis	BOLL	Homo_sapiens	macboule
+Mlig455_056562	testis	Testis	LCP1	Homo_sapiens	-
+Mlig455_058079	testis	Testis	BOLL	Homo_sapiens	macbol2
+Mlig455_065488	testis	Testis	ELAVL4	Homo_sapiens	elav4
+Mlig455_067671	testis	Testis	TUBA4A	Homo_sapiens	-
+Mlig455_041403	progenitor	Progenitor	PIWIL1	Homo_sapiens	-
+Mlig455_060907	progenitor	Progenitor	PIWIL1	Homo_sapiens	macpiwi
+Mlig455_004776	progenitor	Progenitor	PIWIL1	Homo_sapiens	Macpiwi2
+Mlig455_017125	progenitor	Progenitor	YAP1	Homo_sapiens	macyap
+Mlig455_023375	progenitor	Progenitor	DDX39B	Homo_sapiens	ddx39b
+Mlig455_023934	progenitor	Progenitor	HMGB1	Homo_sapiens	-
+Mlig455_025291	progenitor	Progenitor	PCNA	Homo_sapiens	pcna
+Mlig455_025289	progenitor	Progenitor	PCNA	Homo_sapiens	-
+Mlig455_068943	progenitor	Progenitor	DDX39B	Homo_sapiens	ddx39 
+Mlig455_038345	progenitor	Progenitor	DDX4	Homo_sapiens	macvasa

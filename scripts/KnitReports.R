@@ -44,14 +44,3 @@ rmarkdown::render(
    output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
 )
 
-# rmarkdown::render(
-#   "03_RunAnalysis.Rmd",
-#   output_file = "03_RunAnalysis.html",
-#   output_dir  = "../results/rmarkdown_reports"
-# )
-# 
-# rmarkdown::render(
-#   "04_PlotPaperFigures.Rmd",
-#   output_file = "04_PlotPaperFigures.html",
-#   output_dir  = "../results/rmarkdown_reports"
-# )

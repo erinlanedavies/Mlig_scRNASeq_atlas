@@ -133,45 +133,178 @@ module_score_overlap_table <- function(obj,
 add_module_scores_named <- function(obj,
                                     gene_lists,
                                     assay = "RNA",
-                                    prefix = "",
+                                    prefix = "MS_",
                                     nbin = 24,
                                     ctrl = 100,
-                                    seed = 1) {
+                                    seed = 1,
+                                    min_genes = 1,
+                                    warn_low_features = TRUE) {
   if (!inherits(obj, "Seurat")) {
     stop("obj must be a Seurat object.")
   }
 
-  if (!assay %in% Assays(obj)) {
+  if (!assay %in% Seurat::Assays(obj)) {
     stop("Assay not found in object: ", assay)
   }
 
-  DefaultAssay(obj) <- assay
+  if (!is.list(gene_lists) || length(gene_lists) == 0) {
+    stop("gene_lists must be a non-empty named list.")
+  }
 
-  cleaned <- lapply(gene_lists, function(g) unique(g[g %in% rownames(obj)]))
-  cleaned <- cleaned[vapply(cleaned, length, integer(1)) > 0]
+  if (is.null(names(gene_lists)) || any(!nzchar(names(gene_lists)))) {
+    stop("gene_lists must be a named list with non-empty names.")
+  }
+
+  Seurat::DefaultAssay(obj) <- assay
+  present_features <- rownames(obj)
+
+  # Clean, intersect, and validate each module gene set
+  cleaned <- lapply(names(gene_lists), function(nm) {
+    genes <- gene_lists[[nm]]
+
+    if (is.null(genes)) {
+      genes <- character(0)
+    }
+
+    genes <- as.character(genes)
+    genes <- unique(stats::na.omit(genes))
+    genes <- genes[nzchar(genes)]
+    genes <- intersect(genes, present_features)
+
+    if (warn_low_features && length(genes) < min_genes) {
+      warning(
+        "Module '", nm, "' has only ", length(genes),
+        " overlapping feature(s) in assay '", assay, "'."
+      )
+    }
+
+    genes
+  })
+  names(cleaned) <- names(gene_lists)
+
+  # Keep only modules with enough overlapping genes
+  keep <- vapply(cleaned, length, integer(1)) >= min_genes
+  cleaned <- cleaned[keep]
 
   if (length(cleaned) == 0) {
-    stop("None of the gene lists overlap with the object features.")
+    stop(
+      "None of the gene lists have at least ", min_genes,
+      " overlapping feature(s) in assay '", assay, "'."
+    )
   }
+
+  # Build final metadata column names deterministically
+  final_cols <- paste0(prefix, names(cleaned))
+
+  # Protect against duplicate output names
+  if (anyDuplicated(final_cols)) {
+    dup <- unique(final_cols[duplicated(final_cols)])
+    stop(
+      "Duplicated final module score column names detected: ",
+      paste(dup, collapse = ", ")
+    )
+  }
+
+  # Protect against overwriting existing metadata columns
+  existing_cols <- colnames(obj@meta.data)
+  conflicting_cols <- intersect(final_cols, existing_cols)
+  if (length(conflicting_cols) > 0) {
+    stop(
+      "The following target metadata columns already exist: ",
+      paste(conflicting_cols, collapse = ", "),
+      ". Remove them or use a different prefix."
+    )
+  }
+
+  # Track metadata columns before scoring
+  meta_before <- colnames(obj@meta.data)
+  n_before <- length(meta_before)
 
   set.seed(seed)
   obj <- Seurat::AddModuleScore(
     object = obj,
     features = unname(cleaned),
     assay = assay,
-    name = prefix,
+    name = "TMP_MODULE_SCORE_",
     nbin = nbin,
     ctrl = ctrl,
     search = FALSE
   )
 
-  new_cols <- paste0(prefix, seq_along(cleaned))
-  final_cols <- paste0(prefix, names(cleaned))
-  colnames(obj@meta.data)[match(new_cols, colnames(obj@meta.data))] <- final_cols
+  # Detect newly added columns by position first
+  meta_after <- colnames(obj@meta.data)
+  n_after <- length(meta_after)
+  n_expected <- length(cleaned)
 
+  if ((n_after - n_before) != n_expected) {
+    stop(
+      "Unexpected number of metadata columns added by AddModuleScore(). ",
+      "Expected ", n_expected, ", observed ", (n_after - n_before), "."
+    )
+  }
+
+  new_idx <- seq.int(from = n_before + 1, to = n_after)
+  new_cols <- meta_after[new_idx]
+
+  if (length(new_cols) != length(final_cols)) {
+    stop(
+      "Internal error while renaming module score columns. ",
+      "Expected ", length(final_cols), " new columns, found ", length(new_cols), "."
+    )
+  }
+
+  # Rename newly added columns to stable, user-facing names
+  colnames(obj@meta.data)[new_idx] <- final_cols
+
+  # Store useful metadata for downstream inspection
   attr(obj, "module_score_columns") <- final_cols
+  attr(obj, "module_score_gene_lists_used") <- cleaned
+
   obj
 }
+
+#add_module_scores_named <- function(obj,
+#                                    gene_lists,
+#                                    assay = "RNA",
+#                                    prefix = "",
+#                                    nbin = 24,
+#                                    ctrl = 100,
+#                                    seed = 1) {
+#  if (!inherits(obj, "Seurat")) {
+#    stop("obj must be a Seurat object.")
+#  }
+
+#  if (!assay %in% Assays(obj)) {
+#    stop("Assay not found in object: ", assay)
+#  }
+
+#  DefaultAssay(obj) <- assay
+
+#  cleaned <- lapply(gene_lists, function(g) unique(g[g %in% rownames(obj)]))
+#  cleaned <- cleaned[vapply(cleaned, length, integer(1)) > 0]
+
+#  if (length(cleaned) == 0) {
+#    stop("None of the gene lists overlap with the object features.")
+#  }
+
+#  set.seed(seed)
+#  obj <- Seurat::AddModuleScore(
+#    object = obj,
+#    features = unname(cleaned),
+#    assay = assay,
+#    name = prefix,
+#    nbin = nbin,
+#    ctrl = ctrl,
+#    search = FALSE
+#  )
+
+#  new_cols <- paste0(prefix, seq_along(cleaned))
+#  final_cols <- paste0(prefix, names(cleaned))
+#  colnames(obj@meta.data)[match(new_cols, colnames(obj@meta.data))] <- final_cols
+
+#  attr(obj, "module_score_columns") <- final_cols
+#  obj
+#}
 
 find_cluster_column <- function(obj, resolution = 0.6) {
   res_str <- as.character(resolution)

@@ -14,7 +14,7 @@ params:
   project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas"
   stage_integrated_list_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/srt_list_integrated.rds"
   integrated_atlas_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/srt_integrated_all.rds"
-  marker_gene_table: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/data/metadata/literature_marker_genes2.tsv"
+  marker_gene_table: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/data/metadata/curated_marker_genes.tsv"
   sample_id_col: "sample_id"
   stage_col: "Stage"
   save_intermediate_files: TRUE
@@ -156,13 +156,16 @@ print(dim(atlas_int))
 ## Import marker genes
 
 ```{r import_module_score_table, echo=TRUE}
-marker_genes <- read_marker_table(params$marker_gene_table)
+marker_genes <- read_marker_table(params$marker_gene_table,
+                                  gene_col = "TranscriptID",
+                                  celltype_col = "Module")
 
 datatable(marker_genes, options = list(pageLength = 10, scrollX = TRUE))
 ```
 
 ```{r marker_summary_table, echo=TRUE}
-marker_summary <- summarize_marker_table(marker_genes)
+marker_summary <- summarize_marker_table(marker_genes, gene_col = "TranscriptID",
+                                         celltype_col = "Module")
 
 kable(marker_summary, caption = "Number of marker genes per literature-defined cell/tissue type")
 ```
@@ -171,11 +174,11 @@ kable(marker_summary, caption = "Number of marker genes per literature-defined c
 
 name_map <- default_celltype_name_map(df = marker_genes,
                                       to_col = "CleanModuleID",
-                                      from_col = "Cell_tissue_type")
+                                      from_col = "Module")
 
 marker_genes_list <- build_marker_gene_list(marker_genes,
-                                            gene_col = "Gene_ID",
-                                            celltype_col = "Cell_tissue_type",
+                                            gene_col = "TranscriptID",
+                                            celltype_col = "Module",
                                             name_map = name_map
                                             )
 
@@ -294,9 +297,16 @@ plot_order <- c(
   "Gut",
   "Secretory Gut",
   "Rhabdite-Containing",
+  "Stylet",
+  "Regenerating Stylet",
+  "Epidermis",
   "Epidermal Secretory",
+  "Anchor Cell of Adhesive Organ",
   "Secretory Cell of Adhesive Organ",
+  "Paired Ventral Cells",
+  "Single Cells in Tail",
   "Cement Gland",
+#  "Female Antrum",
   "Prostate",
   "Ovary",
   "Testis"
@@ -380,6 +390,14 @@ p_atlas_feature <- save_module_feature_plot(
 p_atlas_feature
 ```
 
+```{r integrated_atlas_figs, echo=TRUE}
+output_file <- paste0(params$out_dir, "module_score_figures/latest/FeaturePlotModuleScoresNew.png")
+png(filename = output_file, width = 40, height = 40, units = "cm", res = 300)
+FeaturePlot_scCustom(atlas_int, features = plot_order, num_columns = 4, aspect_ratio = 1,  min.cutoff = 'q10')
+dev.off()
+
+```
+
 ```{r integrated_atlas_dotplots, echo=TRUE, fig.width=14, fig.height=7}
 atlas_cluster_col <- find_cluster_column(atlas_int, params$dotplot_resolution)
 
@@ -431,8 +449,8 @@ invisible(lapply(names(stage_obj_list), function(nm) {
     width = 16,
     height = 6,
     dpi = params$figure_dpi,
-    print_plots = TRUE,
-    node_colour_aggr = "mean"
+    print_plots = TRUE#,
+#    node_colour_aggr = "mean"
   )
 }))
 ```
@@ -451,8 +469,8 @@ save_module_clustree_series(
   width = 16,
   height = 10,
   dpi = params$figure_dpi,
-  print_plots = TRUE,
-  aggr_fun = "median"
+  print_plots = TRUE#,
+#  aggr_fun = "median"
 )
 ```
 
