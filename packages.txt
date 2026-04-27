@@ -20,3 +20,6 @@ RCurl
 tidyverse
 bioc::topGO
 leidenbase
+ComplexHeatmap
+cowplot
+Matrix

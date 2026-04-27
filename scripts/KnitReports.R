@@ -38,9 +38,22 @@ renv::load(project = getwd())
 #  output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
 #)
 
+#rmarkdown::render(
+#  "Rmarkdown/05_ComputeModuleScores.Rmd",
+#   output_file = "05_ComputeModuleScores.html",
+#   output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
+#)
+
+#rmarkdown::render(
+#  "Rmarkdown/07_PrepareReferenceAtlas_S_mediterranea.Rmd",
+#  output_file = "07_PrepareReferenceAtlas_S_mediterranea.html",
+#  output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
+#)
+
 rmarkdown::render(
-  "Rmarkdown/05_ComputeModuleScores.Rmd",
-   output_file = "05_ComputeModuleScores.html",
-   output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
+  "Rmarkdown/08_PrepareReferenceAtlas_S_mansoni.Rmd",
+  output_file = "08_PrepareReferenceAtlas_S_mansoni.html",
+  output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
 )
+~
 

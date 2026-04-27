@@ -1,0 +1,263 @@
+---
+title: "08_PrepareReferenceAtlas_S_mansoni"
+author: "Francisco Pereira Lobo"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+  toc: true
+  toc_depth: 2
+  toc_float: true
+  theme: cosmo
+  code_folding: "hide"
+  fig_caption: true
+
+params:
+  project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/"
+  working_dir: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mansoni/"
+  input_seurat_file: "GSE146736_adult_scseq_seurat.rds"
+  output_seurat_v5_file: "S_mansoni_seurat_annotated.rds"
+  save_figures: TRUE
+  figure_dpi: 600
+  out_dir: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mansoni/figures/"
+---
+  
+# Description
+  
+Convert the schistosome reference atlas from its original Seurat object into an updated Seurat v5-compatible object, add broad cell type annotations, visualize the resulting labels.
+
+This report:
+  
+- loads the original Seurat object
+- removes stale integrated `scale.data` to allow object upgrading
+- upgrades the object structure with `UpdateSeuratObject()`
+- derives `cell_type` and `broad_cell_type` metadata
+- visualizes the broad cell type annotations
+- rebuilds a lean RNA-counts-based Seurat object for export
+- saves the upgraded Seurat v5 object as `.rds`
+
+## RMarkdown Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 10,
+  fig.height = 6,
+  dpi = 150
+)
+```
+
+## Preparing the environment
+
+### Loading libraries
+
+```{r load_libraries, echo=TRUE}
+library(Seurat)
+library(scCustomize)
+library(ggplot2)
+library(knitr)
+```
+
+### Parameters
+
+```{r print_parameters, echo=TRUE}
+str(params)
+```
+
+### Prepare output directory
+
+```{r prepare_output_dir, echo=TRUE}
+dir.create(params$out_dir, recursive = TRUE, showWarnings = FALSE)
+
+cat("Output directory:\n")
+cat(normalizePath(params$out_dir, mustWork = TRUE), "\n")
+```
+
+## Resolve input and output paths
+
+```{r resolve_paths, echo=TRUE}
+input_seurat_path <- file.path(params$working_dir, params$input_seurat_file)
+output_seurat_v5_path <- file.path(params$working_dir, params$output_seurat_v5_file)
+
+path_table <- data.frame(
+  object = c(
+    "Input Seurat object",
+    "Output Seurat v5 object"
+  ),
+  path = c(
+    input_seurat_path,
+    output_seurat_v5_path
+  ),
+  exists = c(
+    file.exists(input_seurat_path),
+    file.exists(output_seurat_v5_path)
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(path_table, caption = "Input and output paths used by this report")
+```
+
+## Load original Seurat object
+
+```{r load_seurat_object, echo=TRUE}
+if (!file.exists(input_seurat_path)) {
+  stop("Input Seurat object not found: ", input_seurat_path)
+}
+
+srt_obj <- readRDS(input_seurat_path)
+
+```
+
+## Repair object structure and update to Seurat v5
+
+```{r update_seurat_object, echo=TRUE}
+old_opt <- getOption("Seurat.object.validate", TRUE)
+
+options(Seurat.object.validate = FALSE)
+
+if ("integrated" %in% Assays(srt_obj)) {
+  srt_obj@assays[["integrated"]]@scale.data <- matrix(numeric(0), nrow = 0, ncol = 0)
+}
+
+srt_obj <- UpdateSeuratObject(srt_obj)
+
+options(Seurat.object.validate = old_opt)
+
+obj_summary_after <- data.frame(
+  metric = c("n_features", "n_cells", "default_assay"),
+  value = c(
+    nrow(srt_obj),
+    ncol(srt_obj),
+    DefaultAssay(srt_obj)
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(obj_summary_after, caption = "Summary after updating the Seurat object")
+```
+
+## Add broad cell type metadata
+
+```{r add_celltype_metadata, echo=TRUE}
+srt_obj$cell_type <- Idents(srt_obj)
+srt_obj$broad_cell_type <- ""
+
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "neuron", x = srt_obj$cell_type), "neuron", "")
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "muscle", x = srt_obj$cell_type), "muscle", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "flame cells", x = srt_obj$cell_type), "flame cells", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "parenchyma", x = srt_obj$cell_type), "parenchyma", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "zfp-1-1+", x = srt_obj$cell_type), "tegument lineage", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "egc+", x = srt_obj$cell_type), "tegument lineage", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "meg-1+", x = srt_obj$cell_type), "tegument lineage", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "early tsp-2+", x = srt_obj$cell_type), "tegument lineage", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "sm13+", x = srt_obj$cell_type), "tegument lineage", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "tegument 1", x = srt_obj$cell_type), "tegument lineage", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "GSCs", x = srt_obj$cell_type), "germline", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "GSC progeny", x = srt_obj$cell_type), "germline", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "female gametes", x = srt_obj$cell_type), "female gamete", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "^male gametes", x = srt_obj$cell_type), "male gamete", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "gut", x = srt_obj$cell_type), "gut", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "oesophageal gland", x = srt_obj$cell_type), "esophageal gland", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "neoblast", x = srt_obj$cell_type), "neoblast", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse((srt_obj$cell_type == "neoblast progeny"), "neoblast progeny", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "vitellocytes", x = srt_obj$cell_type), "vittelaria", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "S1 progeny", x = srt_obj$cell_type), "vittelaria", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse((srt_obj$cell_type == "S1"), "vittelaria", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse((srt_obj$cell_type == "prom2+"), "prom2+", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "hes2+", x = srt_obj$cell_type), "hes2+", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse(grepl(pattern = "Mehlis' gland", x = srt_obj$cell_type), "Mehlis' gland", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse((srt_obj$cell_type == "tegument 2"), "tegument 2", srt_obj$broad_cell_type)
+srt_obj$broad_cell_type <- ifelse((srt_obj$cell_type == "unknown"), "unknown", srt_obj$broad_cell_type)
+
+celltype_summary <- as.data.frame(table(srt_obj$broad_cell_type), stringsAsFactors = FALSE)
+colnames(celltype_summary) <- c("broad_cell_type", "n_cells")
+
+kable(celltype_summary, caption = "Broad cell type annotation summary")
+```
+
+## Visualize broad cell types
+
+```{r plot_broad_cell_types, echo=TRUE, fig.width=10, fig.height=8}
+DefaultAssay(srt_obj) <- "RNA"
+
+p_broad <- DimPlot_scCustom(
+  srt_obj,
+  group.by = "broad_cell_type",
+  aspect_ratio = 1
+)
+
+print(p_broad)
+```
+
+## Rebuild export object from RNA counts
+
+```{r rebuild_export_object, echo=TRUE}
+rna_counts <- GetAssayData(srt_obj, assay = "RNA", layer = "counts")
+
+new_srt <- CreateSeuratObject(counts = rna_counts)
+
+original_metadata <- srt_obj@meta.data
+new_srt <- AddMetaData(new_srt, metadata = original_metadata)
+
+export_summary <- data.frame(
+  metric = c("n_features", "n_cells", "default_assay"),
+  value = c(
+    nrow(new_srt),
+    ncol(new_srt),
+    DefaultAssay(new_srt)
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(export_summary, caption = "Summary of the exported counts-based Seurat object")
+```
+
+## Export to H5AD and Seurat RDS
+
+```{r export_objects, echo=TRUE}
+saveRDS(srt_obj, output_seurat_v5_path)
+
+output_table <- data.frame(
+  object = c("Seurat v5 RDS export"),
+  file = c(output_seurat_v5_path),
+  exists = file.exists(output_seurat_v5_path),
+  stringsAsFactors = FALSE
+)
+
+kable(output_table, caption = "Exported reference objects")
+```
+
+## Save figure
+
+```{r save_figure, echo=TRUE}
+if (isTRUE(params$save_figures)) {
+  ggplot2::ggsave(
+    filename = file.path(params$out_dir, "dimplot_broad_cell_type_schistosome.pdf"),
+    plot = p_broad,
+    width = 10,
+    height = 8,
+    units = "in",
+    dpi = params$figure_dpi,
+    bg = "white"
+  )
+  
+  ggplot2::ggsave(
+    filename = file.path(params$out_dir, "dimplot_broad_cell_type_schistosome.png"),
+    plot = p_broad,
+    width = 10,
+    height = 8,
+    units = "in",
+    dpi = params$figure_dpi,
+    bg = "white"
+  )
+}
+```
+
+## Session info
+
+```{r session_info, echo=TRUE}
+sessionInfo()
+```
