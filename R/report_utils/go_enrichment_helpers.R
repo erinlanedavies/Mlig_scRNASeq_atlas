@@ -15,7 +15,7 @@ read_gene2go_map <- function(path,
   if (!file.exists(path)) {
     stop("gene2GO map not found: ", path)
   }
-
+  
   geneID2GOs <- read.table(
     path,
     sep = "\t",
@@ -24,63 +24,28 @@ read_gene2go_map <- function(path,
     quote = "",
     comment.char = ""
   )
-
+  
   if (ncol(geneID2GOs) < max(gene_col, go_col)) {
     stop("gene2GO map has fewer columns than expected.")
   }
-
+  
   gene_ids <- as.character(geneID2GOs[[gene_col]])
   go_strings <- as.character(geneID2GOs[[go_col]])
-
+  
   keep <- !is.na(gene_ids) & !is.na(go_strings) &
     nzchar(gene_ids) & nzchar(go_strings)
-
+  
   gene_ids <- gene_ids[keep]
   go_strings <- go_strings[keep]
-
+  
   gene2GO <- strsplit(go_strings, go_sep, fixed = TRUE)
   gene2GO <- lapply(gene2GO, function(x) {
     x <- trimws(x)
     unique(x[nzchar(x)])
   })
-
+  
   names(gene2GO) <- gene_ids
   gene2GO
-}
-
-read_marker_table_for_go <- function(path,
-                                     cluster_col = "cluster",
-                                     gene_col = "gene",
-                                     padj_col = "p_val_adj",
-                                     logfc_col = "avg_log2FC") {
-  if (!file.exists(path)) {
-    stop("Marker table not found: ", path)
-  }
-
-  df <- read.table(
-    path,
-    sep = "\t",
-    header = TRUE,
-    stringsAsFactors = FALSE,
-    check.names = FALSE,
-    quote = "",
-    comment.char = ""
-  )
-
-  validate_marker_table_for_go(
-    markers = df,
-    cluster_col = cluster_col,
-    gene_col = gene_col,
-    padj_col = padj_col,
-    logfc_col = logfc_col
-  )
-
-  df[[cluster_col]] <- as.character(df[[cluster_col]])
-  df[[gene_col]] <- as.character(df[[gene_col]])
-  df[[padj_col]] <- as.numeric(df[[padj_col]])
-  df[[logfc_col]] <- as.numeric(df[[logfc_col]])
-
-  df
 }
 
 validate_marker_table_for_go <- function(markers,
@@ -91,23 +56,102 @@ validate_marker_table_for_go <- function(markers,
   if (!is.data.frame(markers)) {
     stop("markers must be a data.frame.")
   }
-
+  
   required_cols <- c(cluster_col, gene_col, padj_col, logfc_col)
   missing_cols <- setdiff(required_cols, colnames(markers))
-
+  
   if (length(missing_cols) > 0) {
     stop(
       "Marker table is missing required columns: ",
-      paste(missing_cols, collapse = ", ")
+      paste(missing_cols, collapse = ", "),
+      "\nObserved columns: ",
+      paste(colnames(markers), collapse = ", ")
     )
   }
-
+  
   invisible(TRUE)
 }
+
+normalize_findallmarkers_columns <- function(markers,
+                                             cluster_col = "cluster",
+                                             gene_col = "gene",
+                                             padj_col = "p_val_adj",
+                                             logfc_col = "avg_log2FC") {
+  if (!is.data.frame(markers)) {
+    stop("markers must be a data.frame.")
+  }
+  
+  if (nrow(markers) == 0) {
+    stop(
+      "FindAllMarkers() returned zero marker rows. ",
+      "Try lowering findallmarkers_logfc_threshold or findallmarkers_min_pct, ",
+      "or check that marker_ident_col defines valid identities."
+    )
+  }
+  
+  if (!logfc_col %in% colnames(markers)) {
+    fc_candidates <- c("avg_log2FC", "avg_logFC", "avg_log2fc", "avg_logfc")
+    fc_hit <- fc_candidates[fc_candidates %in% colnames(markers)]
+    
+    if (length(fc_hit) == 0) {
+      stop(
+        "No recognized log fold-change column found in FindAllMarkers output.\n",
+        "Expected one of: ", paste(fc_candidates, collapse = ", "), "\n",
+        "Observed columns: ", paste(colnames(markers), collapse = ", ")
+      )
+    }
+    
+    message("Renaming fold-change column '", fc_hit[1], "' to '", logfc_col, "'.")
+    colnames(markers)[colnames(markers) == fc_hit[1]] <- logfc_col
+  }
+  
+  validate_marker_table_for_go(
+    markers = markers,
+    cluster_col = cluster_col,
+    gene_col = gene_col,
+    padj_col = padj_col,
+    logfc_col = logfc_col
+  )
+  
+  markers[[cluster_col]] <- as.character(markers[[cluster_col]])
+  markers[[gene_col]] <- as.character(markers[[gene_col]])
+  markers[[padj_col]] <- as.numeric(markers[[padj_col]])
+  markers[[logfc_col]] <- as.numeric(markers[[logfc_col]])
+  
+  markers
+}
+
+read_marker_table_for_go <- function(path,
+                                     cluster_col = "cluster",
+                                     gene_col = "gene",
+                                     padj_col = "p_val_adj",
+                                     logfc_col = "avg_log2FC") {
+  if (!file.exists(path)) {
+    stop("Marker table not found: ", path)
+  }
+  
+  df <- read.table(
+    path,
+    sep = "\t",
+    header = TRUE,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    quote = "",
+    comment.char = ""
+  )
+  
+  normalize_findallmarkers_columns(
+    markers = df,
+    cluster_col = cluster_col,
+    gene_col = gene_col,
+    padj_col = padj_col,
+    logfc_col = logfc_col
+  )
+}
+
 compute_or_load_findallmarkers <- function(obj,
                                            markers_file,
-                                           compute_markers = TRUE,
-                                           reuse_existing_markers = TRUE,
+                                           recompute_markers = FALSE,
                                            assay = "RNA",
                                            ident_col,
                                            only_pos = TRUE,
@@ -142,14 +186,8 @@ compute_or_load_findallmarkers <- function(obj,
     )
   }
   
-  should_reuse <-
-    isTRUE(reuse_existing_markers) &&
-    !isTRUE(compute_markers) &&
-    file.exists(markers_file)
-  
-  if (should_reuse) {
+  if (file.exists(markers_file) && !isTRUE(recompute_markers)) {
     message("Reading existing FindAllMarkers table: ", markers_file)
-    
     return(
       read_marker_table_for_go(
         path = markers_file,
@@ -159,6 +197,14 @@ compute_or_load_findallmarkers <- function(obj,
         logfc_col = logfc_col
       )
     )
+  }
+  
+  if (file.exists(markers_file) && isTRUE(recompute_markers)) {
+    message("recompute_markers = TRUE; existing marker file will be overwritten: ", markers_file)
+  }
+  
+  if (!file.exists(markers_file)) {
+    message("Marker file not found; running FindAllMarkers(): ", markers_file)
   }
   
   message("Running Seurat::FindAllMarkers().")
@@ -176,60 +222,16 @@ compute_or_load_findallmarkers <- function(obj,
     test.use = test_use
   )
   
-  if (!is.data.frame(markers)) {
-    stop("FindAllMarkers() did not return a data.frame.")
-  }
-  
-  if (nrow(markers) == 0) {
-    stop(
-      "FindAllMarkers() returned zero marker rows. ",
-      "Try lowering findallmarkers_logfc_threshold or findallmarkers_min_pct, ",
-      "or check that marker_ident_col defines valid identities."
-    )
-  }
-  
   message("FindAllMarkers returned columns:")
   message("  ", paste(colnames(markers), collapse = ", "))
   
-  # Seurat can return different fold-change column names depending on version/settings.
-  if (!logfc_col %in% colnames(markers)) {
-    fc_candidates <- c(
-      "avg_log2FC",
-      "avg_logFC",
-      "avg_log2fc",
-      "avg_logfc"
-    )
-    
-    fc_hit <- fc_candidates[fc_candidates %in% colnames(markers)]
-    
-    if (length(fc_hit) == 0) {
-      stop(
-        "No recognized log fold-change column found in FindAllMarkers output.\n",
-        "Expected one of: ", paste(fc_candidates, collapse = ", "), "\n",
-        "Observed columns: ", paste(colnames(markers), collapse = ", ")
-      )
-    }
-    
-    message("Renaming fold-change column '", fc_hit[1], "' to '", logfc_col, "'.")
-    colnames(markers)[colnames(markers) == fc_hit[1]] <- logfc_col
-  }
-  
-  required_cols <- c(cluster_col, gene_col, padj_col, logfc_col)
-  missing_cols <- setdiff(required_cols, colnames(markers))
-  
-  if (length(missing_cols) > 0) {
-    stop(
-      "FindAllMarkers output is missing required columns: ",
-      paste(missing_cols, collapse = ", "),
-      "\nObserved columns: ",
-      paste(colnames(markers), collapse = ", ")
-    )
-  }
-  
-  markers[[cluster_col]] <- as.character(markers[[cluster_col]])
-  markers[[gene_col]] <- as.character(markers[[gene_col]])
-  markers[[padj_col]] <- as.numeric(markers[[padj_col]])
-  markers[[logfc_col]] <- as.numeric(markers[[logfc_col]])
+  markers <- normalize_findallmarkers_columns(
+    markers = markers,
+    cluster_col = cluster_col,
+    gene_col = gene_col,
+    padj_col = padj_col,
+    logfc_col = logfc_col
+  )
   
   dir.create(dirname(markers_file), recursive = TRUE, showWarnings = FALSE)
   
@@ -242,9 +244,9 @@ compute_or_load_findallmarkers <- function(obj,
   )
   
   message("FindAllMarkers table saved to: ", markers_file)
-  
   markers
 }
+
 summarize_marker_selection_for_go <- function(markers,
                                               cluster_col = "cluster",
                                               gene_col = "gene",
@@ -253,7 +255,7 @@ summarize_marker_selection_for_go <- function(markers,
                                               padj_threshold = 1e-5,
                                               logfc_threshold = 2) {
   validate_marker_table_for_go(markers, cluster_col, gene_col, padj_col, logfc_col)
-
+  
   markers %>%
     dplyr::group_by(.data[[cluster_col]]) %>%
     dplyr::summarise(
@@ -281,7 +283,7 @@ get_selected_marker_genes_for_go <- function(markers,
                                              logfc_threshold = 2,
                                              all_genes = NULL) {
   validate_marker_table_for_go(markers, cluster_col, gene_col, padj_col, logfc_col)
-
+  
   out <- markers %>%
     dplyr::filter(
       !is.na(.data[[padj_col]]),
@@ -296,12 +298,12 @@ get_selected_marker_genes_for_go <- function(markers,
       avg_log2FC = .data[[logfc_col]]
     ) %>%
     dplyr::distinct(.data$ClusterID, .data$gene, .keep_all = TRUE)
-
+  
   if (!is.null(all_genes)) {
     out <- out %>%
       dplyr::mutate(in_topgo_universe = .data$gene %in% all_genes)
   }
-
+  
   out %>%
     dplyr::arrange(.data$ClusterID, .data$p_val_adj, dplyr::desc(.data$avg_log2FC))
 }
@@ -313,10 +315,10 @@ run_topgo_for_gene_set <- function(selected_genes,
                                    node_size = 3) {
   selected_genes <- unique(as.character(selected_genes))
   selected_genes <- selected_genes[selected_genes %in% all_genes]
-
+  
   geneList <- ifelse(all_genes %in% selected_genes, 1L, 0L)
   names(geneList) <- all_genes
-
+  
   GOdata <- methods::new(
     "topGOdata",
     ontology = ontology,
@@ -326,27 +328,25 @@ run_topgo_for_gene_set <- function(selected_genes,
     nodeSize = node_size,
     gene2GO = gene2GO
   )
-
+  
   resultFisher <- topGO::runTest(
     GOdata,
     algorithm = "weight01",
     statistic = "fisher"
   )
-
+  
   results <- topGO::GenTable(
     GOdata,
     Fisher = resultFisher,
     topNodes = length(GOdata@graph@nodes)
   )
-
+  
   results$GO.ID <- as.character(results$GO.ID)
   results$Term <- as.character(results$Term)
   results$Fisher_raw <- as.character(results$Fisher)
-  results$Fisher <- suppressWarnings(
-    as.numeric(gsub("^<\\s*", "", results$Fisher_raw))
-  )
+  results$Fisher <- suppressWarnings(as.numeric(gsub("^<\\s*", "", results$Fisher_raw)))
   results$Fisher_FDR <- stats::p.adjust(results$Fisher, method = "BH")
-
+  
   list(
     GOdata = GOdata,
     resultFisher = resultFisher,
@@ -366,15 +366,14 @@ run_topgo_enrichment_by_cluster <- function(markers,
                                             ontology = "BP",
                                             node_size = 3) {
   validate_marker_table_for_go(markers, cluster_col, gene_col, padj_col, logfc_col)
-
+  
   clusters <- sort(unique(as.character(markers[[cluster_col]])))
-
   results_list <- vector("list", length(clusters))
   names(results_list) <- clusters
-
+  
   for (cluster_id in clusters) {
     message("Running topGO for cluster: ", cluster_id)
-
+    
     selected_genes <- markers[[gene_col]][
       markers[[cluster_col]] == cluster_id &
         !is.na(markers[[padj_col]]) &
@@ -382,10 +381,10 @@ run_topgo_enrichment_by_cluster <- function(markers,
         markers[[padj_col]] < padj_threshold &
         markers[[logfc_col]] > logfc_threshold
     ]
-
+    
     selected_genes <- unique(as.character(selected_genes))
     selected_genes <- selected_genes[selected_genes %in% all_genes]
-
+    
     if (length(selected_genes) == 0) {
       warning("No selected genes in universe for cluster: ", cluster_id)
       results_list[[cluster_id]] <- data.frame(
@@ -403,7 +402,7 @@ run_topgo_enrichment_by_cluster <- function(markers,
       )
       next
     }
-
+    
     res <- run_topgo_for_gene_set(
       selected_genes = selected_genes,
       all_genes = all_genes,
@@ -411,24 +410,22 @@ run_topgo_enrichment_by_cluster <- function(markers,
       ontology = ontology,
       node_size = node_size
     )
-
+    
     tbl <- res$results
     tbl$ClusterID <- cluster_id
     tbl$n_selected_genes <- length(selected_genes)
-
+    
     results_list[[cluster_id]] <- tbl
   }
-
+  
   dplyr::bind_rows(results_list)
 }
 
 go_source_from_ontology <- function(ontology) {
   ontology <- toupper(ontology)
-
   if (ontology == "BP") return("GO:BP")
   if (ontology == "MF") return("GO:MF")
   if (ontology == "CC") return("GO:CC")
-
   paste0("GO:", ontology)
 }
 
@@ -438,9 +435,9 @@ topgo_to_gostplot_table <- function(results,
   if (nrow(results) == 0) {
     return(data.frame())
   }
-
+  
   source <- go_source_from_ontology(ontology)
-
+  
   results %>%
     dplyr::filter(!is.na(.data$Fisher_FDR)) %>%
     dplyr::group_by(.data$ClusterID) %>%
@@ -461,26 +458,10 @@ topgo_to_gostplot_table <- function(results,
       recall = NA_real_
     ) %>%
     dplyr::select(
-      query,
-      source,
-      term_id,
-      term_name,
-      p_value,
-      negative_log10_p_value,
-      term_size,
-      intersection_size,
-      effective_domain_size,
-      precision,
-      recall,
-      ClusterID,
-      GO.ID,
-      Term,
-      Fisher,
-      Fisher_FDR,
-      Annotated,
-      Significant,
-      Expected,
-      n_selected_genes
+      query, source, term_id, term_name, p_value, negative_log10_p_value,
+      term_size, intersection_size, effective_domain_size, precision, recall,
+      ClusterID, GO.ID, Term, Fisher, Fisher_FDR, Annotated, Significant,
+      Expected, n_selected_genes
     )
 }
 
@@ -494,7 +475,7 @@ plot_go_enrichment_dotplot <- function(gost_style_results,
         ggplot2::ggtitle("No enriched GO terms passed the selected threshold")
     )
   }
-
+  
   plot_df <- gost_style_results %>%
     dplyr::group_by(.data$ClusterID) %>%
     dplyr::arrange(.data$p_value, .by_group = TRUE) %>%
@@ -507,7 +488,7 @@ plot_go_enrichment_dotplot <- function(gost_style_results,
       source = as.factor(.data$source),
       term_label = forcats::fct_reorder(.data$term_label, .data$negative_log10_p_value)
     )
-
+  
   ggplot2::ggplot(
     plot_df,
     ggplot2::aes(
@@ -540,4 +521,3 @@ plot_go_enrichment_dotplot <- function(gost_style_results,
       legend.position = "right"
     )
 }
-

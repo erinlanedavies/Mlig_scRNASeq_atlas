@@ -12,27 +12,32 @@ output:
     fig_caption: true
 params:
   project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas"
-  input_seurat_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/Digestive_System_integrated_merged.rds"
-  gene2go_file: "/home/pereiralobof2/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/data/metadata/geneid2go.map"
-  markers_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/tables/FindAllMarkers_for_GO_gut.tsv"
-  compute_markers: TRUE
-  reuse_existing_markers: FALSE
+
+  input_seurat_file: "//data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/Digestive_System_integrated_merged.rds"
+  gene2go_file: "/data/Mlig_scRNA_Seq/Francisco/data/geneid2go.map"
+
+  markers_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/tables/FindAllMarkers_for_GO.tsv"
+  recompute_markers: FALSE
+
   marker_assay: "RNA"
   marker_ident_col: "digestive_cluster"
   only_pos_markers: TRUE
   findallmarkers_logfc_threshold: 0
   findallmarkers_min_pct: 0.1
   findallmarkers_test_use: "wilcox"
+
   marker_cluster_col: "cluster"
   marker_gene_col: "gene"
   marker_padj_col: "p_val_adj"
   marker_logfc_col: "avg_log2FC"
+
   ontology: "BP"
   padj_threshold: 0.01
   logfc_threshold: 0.5
   topgo_fdr_threshold: 0.2
   node_size: 3
   top_n_terms_per_cluster: 200
+
   save_intermediate_files: TRUE
   save_figures: TRUE
   figure_dpi: 600
@@ -53,8 +58,6 @@ This report:
 - runs topGO enrichment independently for each cluster or cell type
 - saves all and significant enrichment results
 - generates a gprofiler-style dot plot of enriched GO terms grouped by GO ontology category
-
-The marker table used for enrichment is always the output of `FindAllMarkers()`, either newly computed in this report or loaded from the cached `markers_file`.
 
 ## RMarkdown Setup
 
@@ -134,13 +137,10 @@ dir.create(dirname(params$markers_file), recursive = TRUE, showWarnings = FALSE)
 
 cat("Output directory:\n")
 cat(normalizePath(params$out_dir, mustWork = TRUE), "\n\n")
-
 cat("Table directory:\n")
 cat(normalizePath(table_dir, mustWork = TRUE), "\n\n")
-
 cat("Figure directory:\n")
 cat(normalizePath(figure_dir, mustWork = TRUE), "\n\n")
-
 cat("FindAllMarkers file:\n")
 cat(params$markers_file, "\n")
 ```
@@ -222,8 +222,7 @@ kable(input_summary, caption = "Seurat object summary before marker testing")
 markers <- compute_or_load_findallmarkers(
   obj = srt_obj,
   markers_file = params$markers_file,
-  compute_markers = params$compute_markers,
-  reuse_existing_markers = params$reuse_existing_markers,
+  recompute_markers = params$recompute_markers,
   assay = params$marker_assay,
   ident_col = params$marker_ident_col,
   only_pos = params$only_pos_markers,
@@ -501,6 +500,8 @@ if (isTRUE(params$save_figures)) {
 ```
 
 ## Optional gprofiler gostplot object
+
+This section attempts to use `gprofiler2::gostplot()` on the topGO results converted into a gprofiler-like result table. If the conversion is not compatible with the installed `gprofiler2` version, this section fails gracefully and does not interrupt the report.
 
 ```{r optional_gostplot, echo=TRUE, fig.width=14, fig.height=8}
 if (nrow(gost_style_results) > 0) {
