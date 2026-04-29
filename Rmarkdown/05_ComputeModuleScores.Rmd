@@ -296,7 +296,7 @@ plot_order <- c(
   "Muscle",
   "Gut",
   "Secretory Gut",
-  "Rhabdite-Containing",
+  "Rhabdite-containing",
   "Stylet",
   "Regenerating Stylet",
   "Epidermis",
