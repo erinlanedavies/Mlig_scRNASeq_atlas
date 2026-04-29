@@ -1,0 +1,590 @@
+---
+title: "09_1_GO_Enrichment_Gut"
+author: "Francisco Pereira Lobo"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    theme: cosmo
+    code_folding: "hide"
+    fig_caption: true
+params:
+  project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas"
+  input_seurat_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/Digestive_System_integrated_merged.rds"
+  gene2go_file: "/home/pereiralobof2/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/data/metadata/geneid2go.map"
+  markers_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/tables/FindAllMarkers_for_GO_gut.tsv"
+  compute_markers: TRUE
+  reuse_existing_markers: FALSE
+  marker_assay: "RNA"
+  marker_ident_col: "digestive_cluster"
+  only_pos_markers: TRUE
+  findallmarkers_logfc_threshold: 0
+  findallmarkers_min_pct: 0.1
+  findallmarkers_test_use: "wilcox"
+  marker_cluster_col: "cluster"
+  marker_gene_col: "gene"
+  marker_padj_col: "p_val_adj"
+  marker_logfc_col: "avg_log2FC"
+  ontology: "BP"
+  padj_threshold: 0.01
+  logfc_threshold: 0.5
+  topgo_fdr_threshold: 0.2
+  node_size: 3
+  top_n_terms_per_cluster: 200
+  save_intermediate_files: TRUE
+  save_figures: TRUE
+  figure_dpi: 600
+  out_dir: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results"
+  seed: 42
+---
+
+# Description
+
+Compute Gene Ontology enrichment from marker genes generated with `Seurat::FindAllMarkers()`.
+
+This report:
+
+- loads an integrated Seurat object
+- sets cell identities from a metadata column
+- computes or reuses a `FindAllMarkers()` table
+- filters marker genes by adjusted p-value and log fold-change
+- runs topGO enrichment independently for each cluster or cell type
+- saves all and significant enrichment results
+- generates a gprofiler-style dot plot of enriched GO terms grouped by GO ontology category
+
+The marker table used for enrichment is always the output of `FindAllMarkers()`, either newly computed in this report or loaded from the cached `markers_file`.
+
+## RMarkdown Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 12,
+  fig.height = 8,
+  dpi = 150
+)
+
+set.seed(params$seed)
+```
+
+## Preparing the environment
+
+### Loading libraries
+
+```{r load_libraries, echo=TRUE}
+library(Seurat)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(forcats)
+library(DT)
+library(knitr)
+library(topGO)
+library(gprofiler2)
+```
+
+### Parameters
+
+```{r print_parameters, echo=TRUE}
+str(params)
+```
+
+### Load helper functions
+
+```{r load_functions, echo=TRUE}
+bootstrap <- file.path(
+  normalizePath(params$project_root, mustWork = TRUE),
+  "R",
+  "source_report_functions.R"
+)
+
+if (!file.exists(bootstrap)) {
+  stop("Bootstrap file not found at: ", bootstrap)
+}
+
+source(bootstrap)
+
+source_report_functions(
+  base_dir = params$project_root,
+  rel_dir  = "R/report_utils",
+  files    = c(
+    "io.R",
+    "go_enrichment_helpers.R"
+  )
+)
+```
+
+### Prepare output directories
+
+```{r prepare_output_dir, echo=TRUE}
+dir.create(params$out_dir, recursive = TRUE, showWarnings = FALSE)
+
+table_dir <- file.path(params$out_dir, "tables")
+dir.create(table_dir, recursive = TRUE, showWarnings = FALSE)
+
+figure_dir <- file.path(params$out_dir, "figures", "go_enrichment")
+dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
+
+dir.create(dirname(params$markers_file), recursive = TRUE, showWarnings = FALSE)
+
+cat("Output directory:\n")
+cat(normalizePath(params$out_dir, mustWork = TRUE), "\n\n")
+
+cat("Table directory:\n")
+cat(normalizePath(table_dir, mustWork = TRUE), "\n\n")
+
+cat("Figure directory:\n")
+cat(normalizePath(figure_dir, mustWork = TRUE), "\n\n")
+
+cat("FindAllMarkers file:\n")
+cat(params$markers_file, "\n")
+```
+
+## Resolve input files
+
+```{r resolve_input_files, echo=TRUE}
+input_files <- data.frame(
+  input = c("Seurat object", "gene2GO map"),
+  path = c(params$input_seurat_file, params$gene2go_file),
+  exists = file.exists(c(params$input_seurat_file, params$gene2go_file)),
+  stringsAsFactors = FALSE
+)
+
+kable(input_files, caption = "Required input files used by this report")
+
+if (!all(input_files$exists)) {
+  stop("One or more required input files are missing.")
+}
+```
+
+## Load Seurat object
+
+```{r load_seurat_object, echo=TRUE}
+srt_obj <- readRDS(params$input_seurat_file)
+
+DefaultAssay(srt_obj) <- params$marker_assay
+
+srt_obj <- JoinLayers(srt_obj)
+
+if (!inherits(srt_obj, "Seurat")) {
+  stop("input_seurat_file did not contain a Seurat object.")
+}
+
+if (!params$marker_ident_col %in% colnames(srt_obj@meta.data)) {
+  stop(
+    "marker_ident_col not found in Seurat metadata: ", params$marker_ident_col,
+    "\nAvailable columns:\n",
+    paste(colnames(srt_obj@meta.data), collapse = ", ")
+  )
+}
+
+available_assays <- names(srt_obj@assays)
+
+if (!params$marker_assay %in% available_assays) {
+  stop(
+    "marker_assay not found in object: ", params$marker_assay,
+    "\nAvailable assays:\n",
+    paste(available_assays, collapse = ", ")
+  )
+}
+
+input_summary <- data.frame(
+  metric = c(
+    "n_cells",
+    "n_features",
+    "default_assay_before_marker_testing",
+    "marker_assay",
+    "marker_identity_column",
+    "n_identities"
+  ),
+  value = c(
+    ncol(srt_obj),
+    nrow(srt_obj),
+    DefaultAssay(srt_obj),
+    params$marker_assay,
+    params$marker_ident_col,
+    length(unique(srt_obj@meta.data[[params$marker_ident_col]]))
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(input_summary, caption = "Seurat object summary before marker testing")
+```
+
+## Compute or load FindAllMarkers table
+
+```{r compute_or_load_markers, echo=TRUE}
+markers <- compute_or_load_findallmarkers(
+  obj = srt_obj,
+  markers_file = params$markers_file,
+  compute_markers = params$compute_markers,
+  reuse_existing_markers = params$reuse_existing_markers,
+  assay = params$marker_assay,
+  ident_col = params$marker_ident_col,
+  only_pos = params$only_pos_markers,
+  logfc_threshold = params$findallmarkers_logfc_threshold,
+  min_pct = params$findallmarkers_min_pct,
+  test_use = params$findallmarkers_test_use,
+  cluster_col = params$marker_cluster_col,
+  gene_col = params$marker_gene_col,
+  padj_col = params$marker_padj_col,
+  logfc_col = params$marker_logfc_col
+)
+
+marker_summary <- data.frame(
+  metric = c(
+    "n_marker_rows",
+    "n_unique_marker_genes",
+    "n_marker_clusters"
+  ),
+  value = c(
+    nrow(markers),
+    length(unique(markers[[params$marker_gene_col]])),
+    length(unique(markers[[params$marker_cluster_col]]))
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(marker_summary, caption = "FindAllMarkers output summary")
+
+datatable(
+  head(markers, 100),
+  options = list(pageLength = 20, scrollX = TRUE),
+  caption = "First 100 rows of FindAllMarkers output"
+)
+```
+
+## Load gene2GO annotation
+
+```{r load_gene2go, echo=TRUE}
+gene2GO <- read_gene2go_map(params$gene2go_file)
+
+gene2go_summary <- data.frame(
+  metric = c("n_annotated_genes", "n_go_assignments"),
+  value = c(
+    length(gene2GO),
+    sum(vapply(gene2GO, length, integer(1)))
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(gene2go_summary, caption = "gene2GO annotation summary")
+```
+
+## Define topGO gene universe
+
+```{r define_gene_universe, echo=TRUE}
+all_genes <- rownames(srt_obj)
+all_genes <- intersect(all_genes, names(gene2GO))
+
+if (length(all_genes) == 0) {
+  stop("No overlap between Seurat object genes and gene2GO annotation.")
+}
+
+universe_summary <- data.frame(
+  metric = c(
+    "n_genes_in_seurat_object",
+    "n_genes_in_gene2GO",
+    "n_genes_in_topGO_universe"
+  ),
+  value = c(
+    nrow(srt_obj),
+    length(gene2GO),
+    length(all_genes)
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(universe_summary, caption = "topGO gene universe summary")
+```
+
+## Marker filtering summary
+
+```{r marker_filtering_summary, echo=TRUE}
+marker_filter_summary <- summarize_marker_selection_for_go(
+  markers = markers,
+  cluster_col = params$marker_cluster_col,
+  gene_col = params$marker_gene_col,
+  padj_col = params$marker_padj_col,
+  logfc_col = params$marker_logfc_col,
+  padj_threshold = params$padj_threshold,
+  logfc_threshold = params$logfc_threshold
+)
+
+datatable(
+  marker_filter_summary,
+  options = list(pageLength = 20, scrollX = TRUE),
+  caption = "Marker genes retained for GO enrichment after filtering"
+)
+```
+
+## Save selected marker genes used for GO enrichment
+
+```{r save_selected_marker_genes, echo=TRUE}
+selected_marker_genes <- get_selected_marker_genes_for_go(
+  markers = markers,
+  cluster_col = params$marker_cluster_col,
+  gene_col = params$marker_gene_col,
+  padj_col = params$marker_padj_col,
+  logfc_col = params$marker_logfc_col,
+  padj_threshold = params$padj_threshold,
+  logfc_threshold = params$logfc_threshold,
+  all_genes = all_genes
+)
+
+selected_marker_file <- file.path(
+  table_dir,
+  paste0("FindAllMarkers_selected_genes_for_topGO_", params$ontology, ".tsv")
+)
+
+if (isTRUE(params$save_intermediate_files)) {
+  write.table(
+    selected_marker_genes,
+    file = selected_marker_file,
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+}
+
+datatable(
+  selected_marker_genes,
+  options = list(pageLength = 20, scrollX = TRUE),
+  caption = "Selected marker genes used as foreground sets for topGO"
+)
+```
+
+## Run topGO enrichment by cluster
+
+```{r run_topgo_enrichment, echo=TRUE}
+results_enrichment <- run_topgo_enrichment_by_cluster(
+  markers = markers,
+  all_genes = all_genes,
+  gene2GO = gene2GO,
+  cluster_col = params$marker_cluster_col,
+  gene_col = params$marker_gene_col,
+  padj_col = params$marker_padj_col,
+  logfc_col = params$marker_logfc_col,
+  padj_threshold = params$padj_threshold,
+  logfc_threshold = params$logfc_threshold,
+  ontology = params$ontology,
+  node_size = params$node_size
+)
+
+results_file <- file.path(
+  table_dir,
+  paste0("topGO_enrichment_", params$ontology, "_FindAllMarkers.tsv")
+)
+
+if (isTRUE(params$save_intermediate_files)) {
+  write.table(
+    results_enrichment,
+    file = results_file,
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+}
+
+datatable(
+  results_enrichment,
+  options = list(pageLength = 20, scrollX = TRUE),
+  caption = "All topGO enrichment results"
+)
+```
+
+## Significant enrichment results
+
+```{r significant_enrichment_results, echo=TRUE}
+sig_results <- results_enrichment %>%
+  dplyr::filter(
+    !is.na(.data$Fisher_FDR),
+    .data$Fisher_FDR < params$topgo_fdr_threshold
+  ) %>%
+  dplyr::arrange(.data$ClusterID, .data$Fisher_FDR)
+
+sig_results_file <- file.path(
+  table_dir,
+  paste0("topGO_enrichment_", params$ontology, "_FindAllMarkers_significant.tsv")
+)
+
+if (isTRUE(params$save_intermediate_files)) {
+  write.table(
+    sig_results,
+    file = sig_results_file,
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+}
+
+sig_summary <- sig_results %>%
+  dplyr::count(.data$ClusterID, name = "n_significant_terms") %>%
+  dplyr::arrange(dplyr::desc(.data$n_significant_terms))
+
+kable(sig_summary, caption = "Number of significant enriched GO terms per cluster")
+
+datatable(
+  sig_results,
+  options = list(pageLength = 20, scrollX = TRUE),
+  caption = "Significant topGO enrichment results"
+)
+```
+
+## Prepare gprofiler-style GO dot plot table
+
+```{r prepare_gostplot_table, echo=TRUE}
+gost_style_results <- topgo_to_gostplot_table(
+  results = sig_results,
+  ontology = params$ontology,
+  max_terms_per_cluster = params$top_n_terms_per_cluster
+)
+
+gost_style_file <- file.path(
+  table_dir,
+  paste0("topGO_enrichment_", params$ontology, "_gostplot_style.tsv")
+)
+
+if (isTRUE(params$save_intermediate_files)) {
+  write.table(
+    gost_style_results,
+    file = gost_style_file,
+    sep = "\t",
+    quote = FALSE,
+    row.names = FALSE
+  )
+}
+
+datatable(
+  gost_style_results,
+  options = list(pageLength = 20, scrollX = TRUE),
+  caption = "topGO results converted to gprofiler-style format"
+)
+```
+
+## GO enrichment dot plot
+
+```{r go_dotplot, echo=TRUE, fig.width=14, fig.height=10}
+p_go_dot <- plot_go_enrichment_dotplot(
+  gost_style_results,
+  top_n_terms_per_cluster = params$top_n_terms_per_cluster
+)
+
+print(p_go_dot)
+
+if (isTRUE(params$save_figures)) {
+  ggsave(
+    filename = file.path(figure_dir, paste0("topGO_", params$ontology, "_dotplot.pdf")),
+    plot = p_go_dot,
+    width = 14,
+    height = 10,
+    units = "in",
+    dpi = params$figure_dpi,
+    bg = "white"
+  )
+
+  ggsave(
+    filename = file.path(figure_dir, paste0("topGO_", params$ontology, "_dotplot.png")),
+    plot = p_go_dot,
+    width = 14,
+    height = 10,
+    units = "in",
+    dpi = params$figure_dpi,
+    bg = "white"
+  )
+}
+```
+
+## Optional gprofiler gostplot object
+
+```{r optional_gostplot, echo=TRUE, fig.width=14, fig.height=8}
+if (nrow(gost_style_results) > 0) {
+  p_gost <- tryCatch(
+    {
+      gprofiler2::gostplot(
+        gostres = list(result = gost_style_results),
+        capped = TRUE,
+        interactive = FALSE
+      )
+    },
+    error = function(e) {
+      message("gprofiler2::gostplot() could not plot converted topGO results: ", conditionMessage(e))
+      NULL
+    }
+  )
+
+  if (!is.null(p_gost)) {
+    print(p_gost)
+
+    if (isTRUE(params$save_figures)) {
+      ggsave(
+        filename = file.path(figure_dir, paste0("topGO_", params$ontology, "_gprofiler_gostplot.pdf")),
+        plot = p_gost,
+        width = 14,
+        height = 8,
+        units = "in",
+        dpi = params$figure_dpi,
+        bg = "white"
+      )
+
+      ggsave(
+        filename = file.path(figure_dir, paste0("topGO_", params$ontology, "_gprofiler_gostplot.png")),
+        plot = p_gost,
+        width = 14,
+        height = 8,
+        units = "in",
+        dpi = params$figure_dpi,
+        bg = "white"
+      )
+    }
+  }
+}
+```
+
+## Output files
+
+```{r output_files_summary, echo=TRUE}
+output_files <- data.frame(
+  object = c(
+    "FindAllMarkers table",
+    "Selected marker genes for topGO",
+    "All topGO enrichment results",
+    "Significant topGO enrichment results",
+    "gprofiler-style topGO results",
+    "GO dot plot PDF",
+    "GO dot plot PNG"
+  ),
+  file = c(
+    params$markers_file,
+    selected_marker_file,
+    results_file,
+    sig_results_file,
+    gost_style_file,
+    file.path(figure_dir, paste0("topGO_", params$ontology, "_dotplot.pdf")),
+    file.path(figure_dir, paste0("topGO_", params$ontology, "_dotplot.png"))
+  ),
+  exists = file.exists(c(
+    params$markers_file,
+    selected_marker_file,
+    results_file,
+    sig_results_file,
+    gost_style_file,
+    file.path(figure_dir, paste0("topGO_", params$ontology, "_dotplot.pdf")),
+    file.path(figure_dir, paste0("topGO_", params$ontology, "_dotplot.png"))
+  )),
+  stringsAsFactors = FALSE
+)
+
+kable(output_files, caption = "Files produced by this report")
+```
+
+## Session info
+
+```{r session_info, echo=TRUE}
+sessionInfo()
+```

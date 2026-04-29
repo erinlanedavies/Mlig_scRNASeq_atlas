@@ -51,9 +51,22 @@ renv::load(project = getwd())
 #)
 
 rmarkdown::render(
-  "Rmarkdown/08_PrepareReferenceAtlas_S_mansoni.Rmd",
-  output_file = "08_PrepareReferenceAtlas_S_mansoni.html",
-  output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
+		    "Rmarkdown/07_2_Subset_S_mediterranea_Intestine_to_H5AD.Rmd",
+		      output_file = "07_2_Subset_S_mediterranea_Intestine_to_H5AD.html",
+		      output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
+		      )
+
+rmarkdown::render(
+		  "Rmarkdown/09_GO_enrichment_gut.Rmd",
+		  output_file = "09_GO_enrichment_gut.html",
+		  output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
 )
+
+
+#rmarkdown::render(
+#  "Rmarkdown/08_PrepareReferenceAtlas_S_mansoni.Rmd",
+#  output_file = "08_PrepareReferenceAtlas_S_mansoni.html",
+#  output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
+#)
 ~
 

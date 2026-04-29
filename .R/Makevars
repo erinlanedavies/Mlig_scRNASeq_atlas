@@ -1,0 +1,3 @@
+CXX14 = g++
+CXX14FLAGS = -O2 -march=haswell
+CXX14STD = -std=gnu++14
