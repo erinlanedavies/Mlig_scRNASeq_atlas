@@ -158,6 +158,83 @@ merge_smed_reference_objects <- function(obj_list,
   )
 }
 
+# run_smed_reference_workflow <- function(obj,
+#                                         seed = 42,
+#                                         npcs = 100,
+#                                         integration_dims = 1:40,
+#                                         clustering_resolution = 0.6,
+#                                         k_param = 20) {
+#   if (!inherits(obj, "Seurat")) {
+#     stop("obj must be a Seurat object.")
+#   }
+# 
+#   obj <- Seurat::SCTransform(
+#     object = obj,
+#     vst.flavor = "v2",
+#     vars.to.regress = c("G2M.Score", "S.Score"),
+#     seed.use = seed,
+#     verbose = FALSE
+#   )
+# 
+#   obj <- Seurat::RunPCA(
+#     object = obj,
+#     npcs = npcs,
+#     verbose = TRUE,
+#     seed.use = seed
+#   )
+# 
+#   obj <- Seurat::IntegrateLayers(
+#     object = obj,
+#     method = Seurat::CCAIntegration,
+#     orig.reduction = "pca",
+#     new.reduction = "integrated.cca",
+#     normalization.method = "SCT",
+#     assay = "SCT",
+#     verbose = FALSE
+#   )
+# 
+#   obj <- Seurat::RunUMAP(
+#     object = obj,
+#     reduction = "integrated.cca",
+#     reduction.name = "umap.integrated.cca",
+#     dims = integration_dims,
+#     return.model = TRUE,
+#     seed.use = seed
+#   )
+# 
+#   obj <- Seurat::FindNeighbors(
+#     object = obj,
+#     reduction = "integrated.cca",
+#     dims = integration_dims,
+#     k.param = k_param,
+#     return.neighbor = TRUE,
+#     nn.method = "annoy",
+#     annoy.metric = "cosine",
+#     verbose = FALSE
+#   )
+# 
+#   obj <- Seurat::FindNeighbors(
+#     object = obj,
+#     reduction = "integrated.cca",
+#     dims = integration_dims,
+#     k.param = k_param,
+#     compute.SNN = TRUE,
+#     nn.method = "annoy",
+#     annoy.metric = "cosine",
+#     verbose = FALSE
+#   )
+# 
+#   obj <- Seurat::FindClusters(
+#     object = obj,
+#     resolution = clustering_resolution,
+#     algorithm = 4,
+#     method = "igraph",
+#     random.seed = seed
+#   )
+# 
+#   obj
+# }
+
 run_smed_reference_workflow <- function(obj,
                                         seed = 42,
                                         npcs = 100,
@@ -167,7 +244,7 @@ run_smed_reference_workflow <- function(obj,
   if (!inherits(obj, "Seurat")) {
     stop("obj must be a Seurat object.")
   }
-
+  
   obj <- Seurat::SCTransform(
     object = obj,
     vst.flavor = "v2",
@@ -175,36 +252,33 @@ run_smed_reference_workflow <- function(obj,
     seed.use = seed,
     verbose = FALSE
   )
-
+  
   obj <- Seurat::RunPCA(
     object = obj,
     npcs = npcs,
     verbose = TRUE,
     seed.use = seed
   )
-
-  obj <- Seurat::IntegrateLayers(
-    object = obj,
-    method = Seurat::CCAIntegration,
-    orig.reduction = "pca",
-    new.reduction = "integrated.cca",
-    normalization.method = "SCT",
-    assay = "SCT",
-    verbose = FALSE
-  )
-
+  
+  # obj <- Seurat::IntegrateLayers(
+  #   object = obj,
+  #   method = Seurat::CCAIntegration,
+  #   orig.reduction = "pca",
+  #   new.reduction = "integrated.cca",
+  #   normalization.method = "SCT",
+  #   assay = "SCT",
+  #   verbose = FALSE
+  # )
+  
   obj <- Seurat::RunUMAP(
     object = obj,
-    reduction = "integrated.cca",
-    reduction.name = "umap.integrated.cca",
     dims = integration_dims,
     return.model = TRUE,
     seed.use = seed
   )
-
+  
   obj <- Seurat::FindNeighbors(
     object = obj,
-    reduction = "integrated.cca",
     dims = integration_dims,
     k.param = k_param,
     return.neighbor = TRUE,
@@ -212,10 +286,9 @@ run_smed_reference_workflow <- function(obj,
     annoy.metric = "cosine",
     verbose = FALSE
   )
-
+  
   obj <- Seurat::FindNeighbors(
     object = obj,
-    reduction = "integrated.cca",
     dims = integration_dims,
     k.param = k_param,
     compute.SNN = TRUE,
@@ -223,7 +296,7 @@ run_smed_reference_workflow <- function(obj,
     annoy.metric = "cosine",
     verbose = FALSE
   )
-
+  
   obj <- Seurat::FindClusters(
     object = obj,
     resolution = clustering_resolution,
@@ -231,9 +304,10 @@ run_smed_reference_workflow <- function(obj,
     method = "igraph",
     random.seed = seed
   )
-
+  
   obj
 }
+
 
 read_smed_cell_annotation_table <- function(path) {
   if (!file.exists(path)) {

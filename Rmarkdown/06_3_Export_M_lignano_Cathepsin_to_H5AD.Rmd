@@ -1,0 +1,191 @@
+---
+title: "06_3_Export_M_lignano_Cathepsin_to_H5AD"
+author: "Francisco Pereira Lobo"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    theme: cosmo
+    code_folding: "hide"
+    fig_caption: true
+params:
+  project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas"
+  input_seurat_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/Cathepsin_integrated_merged.rds"
+  output_h5ad_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/Cathepsin_integrated_merged.h5ad"
+  assay: "RNA"
+  seed: 42
+  root_cluster_id: "Mlig_cathepsin_"
+  cluster_id_col: "sct_cath_snn_res.0.2"
+  final_label_col: "final_label_SAMap"
+
+---
+
+# Description
+
+This report:
+
+- loads the *M. lignano* Seurat reference object with module scores from step 05
+- writes the seurat object as `.h5ad`
+
+## RMarkdown Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 10,
+  fig.height = 6,
+  dpi = 150
+)
+
+set.seed(params$seed)
+```
+
+## Preparing the environment
+
+### Loading libraries
+
+```{r load_libraries, echo=TRUE}
+
+library(Seurat)
+library(zellkonverter)
+library(SingleCellExperiment)
+library(knitr)
+```
+
+### Parameters
+
+Parameters used to generate this report:
+
+```{r print_parameters, echo=TRUE}
+str(params)
+```
+
+### Load helper functions
+
+```{r load_functions, echo=TRUE}
+bootstrap <- file.path(
+  normalizePath(params$project_root, mustWork = TRUE),
+  "R",
+  "source_report_functions.R"
+)
+
+if (!file.exists(bootstrap)) {
+  stop("Bootstrap file not found at: ", bootstrap)
+}
+
+source(bootstrap)
+
+source_report_functions(
+  base_dir = params$project_root,
+  rel_dir  = "R/report_utils",
+  files    = c(
+    "io.R",
+    "seurat.R"
+  )
+)
+```
+
+
+## Resolve paths
+
+```{r resolve_paths, echo=TRUE}
+output_dir <- dirname(params$output_h5ad_file)
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+path_table <- data.frame(
+  object = c(
+    "Input annotated Seurat object",
+    "Output H5AD object"
+  ),
+  path = c(
+    params$input_seurat_file,
+    params$output_h5ad_file
+  ),
+  exists = file.exists(c(
+    params$input_seurat_file,
+    params$output_h5ad_file
+  )),
+  stringsAsFactors = FALSE
+)
+
+kable(path_table, caption = "Input and output paths used by this report")
+```
+
+## Load annotated reference object
+
+```{r load_reference_object, echo=TRUE}
+if (!file.exists(params$input_seurat_file)) {
+  stop("Input Seurat object not found: ", params$input_seurat_file)
+}
+
+srt_obj <- readRDS(params$input_seurat_file)
+
+
+assay_names <- names(srt_obj@assays)
+
+if (is.null(params$assay) || !is.character(params$assay) || length(params$assay) != 1) {
+  stop("params$assay must be a single character value, e.g. assay: 'RNA'")
+}
+
+if (!params$assay %in% assay_names) {
+  stop(
+    "Requested assay not found in object: ", params$assay,
+    "\nAvailable assays:\n",
+    paste(assay_names, collapse = ", ")
+  )
+}
+
+DefaultAssay(srt_obj) <- params$assay
+
+srt_obj <- JoinLayers(srt_obj)
+
+new_col_name <- params$final_label_col
+cluster_id_col <- params$cluster_id_col
+root_cluster_id <- params$root_cluster_id
+
+final_label <- srt_obj[[cluster_id_col]][,1]
+
+final_label <- paste0(root_cluster_id, final_label)
+
+srt_obj[[new_col_name]] <- final_label
+
+reference_summary <- data.frame(
+  metric = c("n_features", "n_cells", "default_assay"),
+  value = c(nrow(srt_obj), ncol(srt_obj), DefaultAssay(srt_obj)),
+  stringsAsFactors = FALSE
+)
+
+kable(reference_summary, caption = "Summary of the input annotated object")
+```
+
+
+
+```{r export_seurat, echo=TRUE}
+sce_obj <- Seurat::as.SingleCellExperiment(srt_obj)
+
+zellkonverter::writeH5AD(
+  sce = sce_obj,
+  file = params$output_h5ad_file
+)
+
+output_table <- data.frame(
+  object = c("S. mediterranea Seurat object", "S. mediterranea H5AD object"),
+  file = c(params$input_seurat_file, params$output_h5ad_file),
+  exists = file.exists(c(params$output_h5ad_file, params$output_seurat_file)),
+  stringsAsFactors = FALSE
+)
+
+kable(output_table, caption = "Output files produced by this report")
+```
+
+
+## Session info
+
+```{r session_info, echo=TRUE}
+sessionInfo()
+```

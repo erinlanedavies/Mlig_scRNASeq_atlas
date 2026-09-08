@@ -231,16 +231,6 @@ if (file.exists(stage_scores_file) && file.exists(atlas_scores_file)) {
   cat("  ", stage_scores_file, "\n")
   cat("  ", atlas_scores_file, "\n")
 } else {
-  stage_obj_list <- lapply(stage_obj_list, function(obj) {
-    add_module_scores_named(
-      obj = obj,
-      gene_lists = marker_genes_list,
-      assay = "RNA",
-      prefix = "",
-      seed = params$seed
-    )
-  })
-
   atlas_int <- add_module_scores_named(
     obj = atlas_int,
     gene_lists = marker_genes_list,
@@ -248,7 +238,21 @@ if (file.exists(stage_scores_file) && file.exists(atlas_scores_file)) {
     prefix = "",
     seed = params$seed
   )
-
+  
+  # add module scores computed for the whole object to the list of stage-specific objects
+  stage_obj_list <- lapply(stage_obj_list, function(obj) {
+    cells <- Cells(obj)
+    cells <- intersect(cells, Cells(atlas_int))
+    cols <- names(marker_genes_list)
+    
+    meta_sub <- atlas_int@meta.data[cells, cols]
+    
+    obj <- AddMetaData(obj,
+                       meta_sub
+                       )
+    }
+  )
+  
   if (isTRUE(params$save_intermediate_files)) {
     saveRDS(stage_obj_list, file = stage_scores_file)
     saveRDS(atlas_int, file = atlas_scores_file)

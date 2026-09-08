@@ -1,5 +1,5 @@
 ---
-title: "07_2_Subset_S_mediterranea_Intestine_to_H5AD"
+title: "08_4_Subset_S_mansoni_Muscle_cells_to_H5AD"
 author: "Francisco Pereira Lobo"
 date: "`r Sys.Date()`"
 output:
@@ -11,16 +11,13 @@ output:
     code_folding: "hide"
     fig_caption: true
 params:
-  input_seurat_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mediterranea/S_mediterranea_seurat_annotated.rds"
-  output_h5ad_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mediterranea/S_mediterranea_intestine_cells.h5ad"
-  output_seurat_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mediterranea/S_mediterranea_intestine_cells.rds"
-  annotation_col: "Cluster.number"
+  input_seurat_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mansoni/S_mansoni_seurat_annotated.rds"
+  output_h5ad_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mansoni/S_mansoni_Muscle_cells.h5ad"
+  output_seurat_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mansoni/S_mansoni_Muscle_cells.rds"
+  annotation_col: "broad_cell_type"
   clusters_to_keep:
     value:
-      - "6"
-      - "19"
-      - "30"
-      - "43"
+      - "muscle"
   assay: "RNA"
   layer: "counts"
   save_intermediate_files: TRUE
@@ -29,16 +26,16 @@ params:
 
 # Description
 
-Subset the annotated *Schmidtea mediterranea* reference atlas to cells annotated as gut-related cells and export the subset as an AnnData/H5AD object.
+Subset the annotated *Schistosoma mansoni* reference atlas to cells annotated as muscle cells cells and export the subset as an AnnData/H5AD object.
 
 This report:
 
-- loads the annotated *S. mediterranea* Seurat reference object
-- identifies gut cells using a configurable metadata column and regular expression
-- subsets the Seurat object to gut cells
+- loads the annotated *S. mansoni* Seurat reference object
+- identifies muscle cells using a configurable metadata column and regular expression
+- subsets the Seurat object to muscle cells
 - rebuilds a clean RNA-counts-based Seurat object for export
-- writes the gut subset as `.h5ad`
-- optionally saves the gut-only Seurat object as `.rds`
+- writes the muscle subset as `.h5ad`
+- optionally saves the muscle cells Seurat object as `.rds`
 
 ## RMarkdown Setup
 
@@ -82,8 +79,8 @@ dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 path_table <- data.frame(
   object = c(
     "Input annotated Seurat object",
-    "Output gut H5AD object",
-    "Output gut Seurat object"
+    "Output muscle H5AD object",
+    "Output muscle Seurat object"
   ),
   path = c(
     params$input_seurat_file,
@@ -148,9 +145,9 @@ reference_summary <- data.frame(
 kable(reference_summary, caption = "Summary of the input annotated reference object")
 ```
 
-## Subset gut cells
+## Subset parenchyma cells
 
-```{r identify_gut_cells, echo=TRUE}
+```{r identify_cells, echo=TRUE}
 clusters_to_keep <- unlist(params$clusters_to_keep)
 
 cells_to_keep <- rownames(srt_obj@meta.data)[
@@ -166,13 +163,13 @@ srt_obj_subset <- subset(
   cells = cells_to_keep
 )
 
-gut_subset_summary <- data.frame(
+subset_summary <- data.frame(
   metric = c("n_features", "n_cells", "default_assay"),
   value = c(nrow(srt_obj_subset), ncol(srt_obj_subset), DefaultAssay(srt_obj_subset)),
   stringsAsFactors = FALSE
 )
 
-kable(gut_subset_summary, caption = "Summary of the gut-only Seurat object")
+kable(subset_summary, caption = "Summary of the muscle-only Seurat object")
 
 ```
 
@@ -180,7 +177,7 @@ kable(gut_subset_summary, caption = "Summary of the gut-only Seurat object")
 
 ```{r rebuild_counts_based_object, echo=TRUE}
 
-srt_obj_subset <- JoinLayers(srt_obj_subset)
+#srt_obj_subset <- JoinLayers(srt_obj_subset)
 
 rna_counts <- Seurat::GetAssayData(
   object = srt_obj_subset,
@@ -191,7 +188,7 @@ rna_counts <- Seurat::GetAssayData(
 srt_obj_subset_export <- Seurat::CreateSeuratObject(
   counts = rna_counts,
   meta.data = srt_obj_subset@meta.data,
-  project = "S_mediterranea_gut"
+  project = "S_mediterranea_muscle"
 )
 
 export_summary <- data.frame(
@@ -203,13 +200,13 @@ export_summary <- data.frame(
 kable(export_summary, caption = "Summary of the counts-based object prepared for H5AD export")
 ```
 
-## Export gut subset
+## Export muscle subset
 
-```{r export_gut_subset, echo=TRUE}
-sce_gut <- Seurat::as.SingleCellExperiment(srt_obj_subset_export)
+```{r export_subset, echo=TRUE}
+sce <- Seurat::as.SingleCellExperiment(srt_obj_subset_export)
 
 zellkonverter::writeH5AD(
-  sce = sce_gut,
+  sce = sce,
   file = params$output_h5ad_file
 )
 
@@ -218,7 +215,7 @@ if (isTRUE(params$save_intermediate_files)) {
 }
 
 output_table <- data.frame(
-  object = c("S. mediterranea gut H5AD object", "S. mediterranea gut Seurat object"),
+  object = c("S. mansoni muscle H5AD object", "S. mansoni muscle Seurat object"),
   file = c(params$output_h5ad_file, params$output_seurat_file),
   exists = file.exists(c(params$output_h5ad_file, params$output_seurat_file)),
   stringsAsFactors = FALSE

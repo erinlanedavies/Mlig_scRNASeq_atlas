@@ -1,15 +1,52 @@
-CellType	HexCode
-Progenitor	#525252
-Nervous System	#377EB8
-Muscle	#E4211C
-Gut	#F0E442
-Secretory Gut	#FFDA03
-Rhabdite-Containing	#F768A1
-Epidermal Secretory	#FDB462
-Secretory Cell of Adhesive Organ	#FB8072
-Cement Gland	#C452D0
-Prostate	#9E51D5
-Ovary	#E03ED8
-Testis	#703BE7
-Unassigned	#E5C494
-
+OriginalLabel	FinalCellTypeLabel	AnnotationSource	HexCode
+-	Progenitor cell	SystemLevel	#525252
+-	Neural cell	SystemLevel	#1E82D7
+-	Muscle cell	SystemLevel	#E4211C
+-	Integument cell	SystemLevel	#2E8B57
+-	Digestive cell	SystemLevel	#EFA3C2
+-	Secretory cell	SystemLevel	#E65100
+-	Reproduction cell	SystemLevel	#6A0DAD
+-	Parenchymal cell	SystemLevel	#7FE3E6
+-	Renal cell	SystemLevel	#17A589
+-	Misc cell	SystemLevel	#FFEA00
+-	Unassigned cell	SystemLevel	#E5C494
+Progenitor	Progenitor cell	ModuleScore	#525252
+Neural	Neural cell	ModuleScore	#1E82D7
+Muscle	Muscle cell	ModuleScore	#E4211C
+Gut	Gut cell	ModuleScore	#EFA3C2
+Secretory Gut	Secretory gut cell	ModuleScore	#C95C99
+Epidermis	Epidermal cell	ModuleScore	#4DAF4A
+Rhabdite containing	Rhabdite-containing cell	ModuleScore	#E65100
+Secretory Cell of Adhesive Organ	Adhesive organ secretory cell	ModuleScore	#FFA000
+Anchor Cell of Adhesive Organ	Anchor Cell of adhesive organ	ModuleScore	#FB8072
+Cement Gland	Cement gland cell	ModuleScore	#A64AC9
+Ovary	Ovary cell	ModuleScore	Я8Е24АА
+Prostate	Prostate cell	ModuleScore	#6A0DAD
+Testis	Testis cell	ModuleScore	#4АОСВА
+Female Antrum	Female antrum cell	ModuleScore	WD81B9B
+Stylet	Stylet cell	ModuleScore	#7B2CBF
+Regenerating Stylet	Regenerating stylet cell	ModuleScore	#4A148C
+Paired Ventral Cells	Paired ventral cell	ModuleScore	#FFEA00
+Single Cells in Tail	Single cell in tail	ModuleScore	#EFF2A8
+neuron	Neural cell	SchistosomaMansoniAnnotation	#1E82D7
+muscle	Muscle cell	SchistosomaMansoniAnnotation	#E4211C
+tegument lineage	Tegument lineage cell	SchistosomaMansoniAnnotation	#2E8B57
+parenchyma	Parenchymal cell	SchistosomaMansoniAnnotation	#7FE3E6
+neoblast	Neoblast (stem cell)	SchistosomaMansoniAnnotation	#525252
+neoblast progeny	Neoblast progeny cell	SchistosomaMansoniAnnotation	#525252
+Mehlis' gland	Mehlis' gland cell	SchistosomaMansoniAnnotation	#6A0DAD
+vitellaria	Vitellaria cell	SchistosomaMansoniAnnotation	#6A0DAD
+male gamete	Male gamete	SchistosomaMansoniAnnotation	#6A0DAD
+flame cells	Flame cell	SchistosomaMansoniAnnotation	#17A589
+female gamete	Female gamete	SchistosomaMansoniAnnotation	#6A0DAD
+Unassigned	Unassigned	SchistosomaMansoniAnnotation	#ESC494
+germline	Germline cell	SchistosomaMansoniAnnotation	#6A0DAD
+gut	Gut cell	SchistosomaMansoniAnnotation	#EFA3C2
+Neural	Neural cell	SchmidteaMediterraneaAnnotation	#1E82D7
+Cathepsin..cells	Cathepsin+ cell	SchmidteaMediterraneaAnnotation	#7FE3E6
+Epidermal	Epidermal cell	SchmidteaMediterraneaAnnotation	#2E8B57
+Intestine	Intestinal cell	SchmidteaMediterraneaAnnotation	#EFA3C2
+Neoblast	Neoblast (stem cell)	SchmidteaMediterraneaAnnotation	#525252
+Muscle	Muscle cell	SchmidteaMediterraneaAnnotation	#E4211C
+Parapharyngeal (renamed)	Secretory cell	SchmidteaMediterraneaAnnotation	#E65100
+Unasssigned	Unassigned	SchmidteaMediterraneaAnnotation	#E5C494

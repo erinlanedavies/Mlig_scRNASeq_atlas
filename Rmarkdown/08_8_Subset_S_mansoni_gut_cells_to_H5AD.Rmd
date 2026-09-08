@@ -1,0 +1,232 @@
+---
+title: "08_7_Subset_S_mansoni_Progeny_cells_to_H5AD"
+author: "Francisco Pereira Lobo"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    theme: cosmo
+    code_folding: "hide"
+    fig_caption: true
+params:
+  input_seurat_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mansoni/S_mansoni_seurat_annotated.rds"
+  output_h5ad_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mansoni/S_mansoni_Gut_cells.h5ad"
+  output_seurat_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mansoni/S_mansoni_Gut_cells.rds"
+  annotation_col: "broad_cell_type"
+  clusters_to_keep:
+    value:
+      - "gut"
+
+  assay: "RNA"
+  layer: "counts"
+  save_intermediate_files: TRUE
+  seed: 42
+---
+
+# Description
+
+Subset the annotated *Schistosoma mansoni* reference atlas to cells annotated as progeny cells cells and export the subset as an AnnData/H5AD object.
+
+This report:
+
+- loads the annotated *S. mansoni* Seurat reference object
+- identifies progeny cells using a configurable metadata column and regular expression
+- subsets the Seurat object to progeny cells
+- rebuilds a clean RNA-counts-based Seurat object for export
+- writes the progeny subset as `.h5ad`
+- optionally saves the progeny cells Seurat object as `.rds`
+
+## RMarkdown Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 10,
+  fig.height = 6,
+  dpi = 150
+)
+
+set.seed(params$seed)
+```
+
+## Preparing the environment
+
+### Loading libraries
+
+```{r load_libraries, echo=TRUE}
+library(Seurat)
+library(zellkonverter)
+library(SingleCellExperiment)
+library(knitr)
+```
+
+### Parameters
+
+```{r print_parameters, echo=TRUE}
+str(params)
+```
+
+## Resolve paths
+
+```{r resolve_paths, echo=TRUE}
+output_dir <- dirname(params$output_h5ad_file)
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+path_table <- data.frame(
+  object = c(
+    "Input annotated Seurat object",
+    "Output progeny H5AD object",
+    "Output progeny Seurat object"
+  ),
+  path = c(
+    params$input_seurat_file,
+    params$output_h5ad_file,
+    params$output_seurat_file
+  ),
+  exists = file.exists(c(
+    params$input_seurat_file,
+    params$output_h5ad_file,
+    params$output_seurat_file
+  )),
+  stringsAsFactors = FALSE
+)
+
+kable(path_table, caption = "Input and output paths used by this report")
+```
+
+## Load annotated reference object
+
+```{r load_reference_object, echo=TRUE}
+if (!file.exists(params$input_seurat_file)) {
+  stop("Input Seurat object not found: ", params$input_seurat_file)
+}
+
+srt_obj <- readRDS(params$input_seurat_file)
+
+if (!inherits(srt_obj, "Seurat")) {
+  stop("The input file did not contain a Seurat object.")
+}
+
+if (!params$annotation_col %in% colnames(srt_obj@meta.data)) {
+  stop(
+    "annotation_col not found in Seurat metadata: ",
+    params$annotation_col,
+    "\nAvailable columns include:\n",
+    paste(colnames(srt_obj@meta.data), collapse = ", ")
+  )
+}
+
+assay_names <- names(srt_obj@assays)
+
+if (is.null(params$assay) || !is.character(params$assay) || length(params$assay) != 1) {
+  stop("params$assay must be a single character value, e.g. assay: 'RNA'")
+}
+
+if (!params$assay %in% assay_names) {
+  stop(
+    "Requested assay not found in object: ", params$assay,
+    "\nAvailable assays:\n",
+    paste(assay_names, collapse = ", ")
+  )
+}
+
+DefaultAssay(srt_obj) <- params$assay
+
+reference_summary <- data.frame(
+  metric = c("n_features", "n_cells", "default_assay", "annotation_col"),
+  value = c(nrow(srt_obj), ncol(srt_obj), DefaultAssay(srt_obj), params$annotation_col),
+  stringsAsFactors = FALSE
+)
+
+kable(reference_summary, caption = "Summary of the input annotated reference object")
+```
+
+## Subset parenchyma cells
+
+```{r identify_cells, echo=TRUE}
+clusters_to_keep <- unlist(params$clusters_to_keep)
+
+cells_to_keep <- rownames(srt_obj@meta.data)[
+  srt_obj@meta.data[[params$annotation_col]] %in% clusters_to_keep
+]
+
+if (length(cells_to_keep) == 0) {
+  stop("No cells matched the requested cluster IDs.")
+}
+
+srt_obj_subset <- subset(
+  x = srt_obj,
+  cells = cells_to_keep
+)
+
+subset_summary <- data.frame(
+  metric = c("n_features", "n_cells", "default_assay"),
+  value = c(nrow(srt_obj_subset), ncol(srt_obj_subset), DefaultAssay(srt_obj_subset)),
+  stringsAsFactors = FALSE
+)
+
+kable(subset_summary, caption = "Summary of the progeny-only Seurat object")
+
+```
+
+## Rebuild counts-based export object
+
+```{r rebuild_counts_based_object, echo=TRUE}
+
+#srt_obj_subset <- JoinLayers(srt_obj_subset)
+
+rna_counts <- Seurat::GetAssayData(
+  object = srt_obj_subset,
+  assay = params$assay,
+  layer = params$layer
+)
+
+srt_obj_subset_export <- Seurat::CreateSeuratObject(
+  counts = rna_counts,
+  meta.data = srt_obj_subset@meta.data,
+  project = "S_mediterranea_progeny"
+)
+
+export_summary <- data.frame(
+  metric = c("n_features", "n_cells", "default_assay"),
+  value = c(nrow(srt_obj_subset_export), ncol(srt_obj_subset_export), DefaultAssay(srt_obj_subset_export)),
+  stringsAsFactors = FALSE
+)
+
+kable(export_summary, caption = "Summary of the counts-based object prepared for H5AD export")
+```
+
+## Export progeny subset
+
+```{r export_subset, echo=TRUE}
+sce <- Seurat::as.SingleCellExperiment(srt_obj_subset_export)
+
+zellkonverter::writeH5AD(
+  sce = sce,
+  file = params$output_h5ad_file
+)
+
+if (isTRUE(params$save_intermediate_files)) {
+  saveRDS(srt_obj_subset, params$output_seurat_file)
+}
+
+output_table <- data.frame(
+  object = c("S. mansoni progeny H5AD object", "S. mansoni progeny Seurat object"),
+  file = c(params$output_h5ad_file, params$output_seurat_file),
+  exists = file.exists(c(params$output_h5ad_file, params$output_seurat_file)),
+  stringsAsFactors = FALSE
+)
+
+kable(output_table, caption = "Output files produced by this report")
+```
+
+## Session info
+
+```{r session_info, echo=TRUE}
+sessionInfo()
+```

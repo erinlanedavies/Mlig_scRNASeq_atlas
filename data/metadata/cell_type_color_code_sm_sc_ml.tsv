@@ -1,0 +1,26 @@
+Cell_Type	Final_Label	System_Label	System_Color	Specific_Color
+Neural	Neural	Neural	#1E82D7	#1E82D7
+Cathepsin+ cells	Cathepsin+ cell	Parenchymal	#7FE3E6	#7FE3E6
+Epidermal	Epidermal	Integument	#2E8B57	#2E8B57
+Intestine	Intestinal cell	Digestive	#EFA3C2	#EFA3C2
+Pharynx	Pharynx	Pharynx	#FF4FA3	#FF4FA3
+Protonephridia	Protonephridia	Renal	#00A6A6	#00A6A6
+Neoblast	Neoblast	Progenitor	#525252	#525252
+Muscle	Muscle	Muscle	#E4211C	#E4211C
+Parapharyngeal	Secretory cell	Secretory	#E65100	#E65100
+NA	Unassigned	Unassigned	#E5C494	#E5C494
+Cell_Type	Final_Label	System_Label	System_Color	Specific_Color
+neuron	Neural cell	Neural	#1E82D7	#1E82D7
+muscle	Muscle cell	Muscle	#E4211C	#E4211C
+parenchyma	Parenchymal cell	Parenchymal	#7FE3E6	#7FE3E6
+tegument lineage	Tegument lineage cell	Integument	#2E8B57	#3FAF6B
+neoblast	Neoblast	Progenitor	#525252	#525252
+neoblast progeny	Neoblast progeny	Progenitor	#525252	#9E9E9E
+Mehlis' gland	Mehlis’ gland	Reproduction	#6A0DAD	#6A0DAD
+vitellaria	Vitellaria	Reproduction	#6A0DAD	#A64AC9
+male gamete	Male gamete	Reproduction	#6A0DAD	#4A0C8A
+flame cells	Flame cell	Renal	#00A6A6	#00A6A6
+unknown	Unassigned	Unassigned	#E5C494	#E5C494
+female gamete	Female gamete	Reproduction	#6A0DAD	#4A0C8A
+gut	Intestinal cell	Digestive	#EFA3C2	#EFA3C2
+germline	Germline	Reproduction	#6A0DAD	#6A0DAD

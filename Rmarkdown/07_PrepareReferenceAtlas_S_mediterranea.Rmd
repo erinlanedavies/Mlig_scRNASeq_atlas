@@ -19,8 +19,8 @@ params:
   cell_annotation_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mediterranea/S_mediterranea_metadata.txt"
   marker_gene_file: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/data/metadata/S_med_marker_genes.tsv"
   include_sexual: FALSE
-  output_object_file: "S_mediterranea_seurat.rds"
-  output_annotated_object_file: "S_mediterranea_seurat_annotated.rds"
+  output_intermediate_object_file: "S_mediterranea_seurat.rds"
+  output_final_object_file: "S_mediterranea_seurat_annotated.rds"
   save_intermediate_files: TRUE
   save_figures: TRUE
   figure_dpi: 600
@@ -257,40 +257,10 @@ cat("Merged reference dimensions (features x cells):\n")
 print(dim(reference_obj))
 ```
 
-## Build or load integrated reference
-
-```{r integrate_reference, echo=TRUE}
-reference_file <- file.path(obj_dir, params$output_object_file)
-
-if (file.exists(reference_file)) {
-  srt_obj_raw <- readRDS(reference_file)
-  cat("Reusing cached integrated reference object:\n")
-  cat("  ", reference_file, "\n")
-} else {
-  options(future.globals.maxSize = 50000 * 1024^2)
-
-  srt_obj_raw <- run_smed_reference_workflow(
-    obj = reference_obj,
-    seed = params$seed,
-    npcs = params$npcs,
-    integration_dims = seq_len(params$integration_dims),
-    clustering_resolution = params$clustering_resolution,
-    k_param = params$k_param
-  )
-
-  if (isTRUE(params$save_intermediate_files)) {
-    saveRDS(srt_obj_raw, reference_file)
-  }
-}
-
-cat("Integrated reference dimensions (features x cells):\n")
-print(dim(srt_obj_raw))
-```
-
 ## Attach cell type annotations
 
 ```{r attach_celltype_annotations, echo=TRUE}
-annotated_reference_file <- file.path(params$out_dir, params$output_annotated_object_file)
+annotated_reference_file <- file.path(params$out_dir, params$output_intermediate_object_file)
 
 if (file.exists(annotated_reference_file)) {
   srt_obj <- readRDS(annotated_reference_file)
@@ -298,15 +268,20 @@ if (file.exists(annotated_reference_file)) {
   cat("  ", annotated_reference_file, "\n")
 } else {
   cell_metadata <- read_smed_cell_annotation_table(params$cell_annotation_file)
-
+  
   srt_obj <- attach_smed_cell_labels(
-    obj = srt_obj_raw,
+    obj = reference_obj,
     cell_metadata = cell_metadata,
     cell_id_col = "Cell.ID",
     metadata_cols = c("Major.cluster.description", "Cluster.number", "Cluster.ID", "Subcluster.Number", "Subcluster.ID"),
     strip_prefix_regex = "^[^_]*_"
   )
-
+  
+  # Remove unlabeled cells
+  srt_obj <- subset(
+    srt_obj,
+    subset = Major.cluster.description != "-"
+  )
   if (isTRUE(params$save_intermediate_files)) {
     saveRDS(srt_obj, annotated_reference_file)
   }
@@ -325,11 +300,41 @@ annotation_summary <- data.frame(
 kable(annotation_summary, caption = "Summary after adding cell type annotations")
 ```
 
+## Build or load integrated reference
+
+```{r integrate_reference, echo=TRUE}
+reference_file <- file.path(obj_dir, params$output_final_object_file)
+
+if (file.exists(reference_file)) {
+  srt_obj <- readRDS(reference_file)
+  cat("Reusing cached integrated reference object:\n")
+  cat("  ", reference_file, "\n")
+} else {
+  options(future.globals.maxSize = 50000 * 1024^2)
+  
+  srt_obj <- run_smed_reference_workflow(
+    obj = srt_obj,
+    seed = params$seed,
+    npcs = params$npcs,
+    integration_dims = seq_len(params$integration_dims),
+    clustering_resolution = params$clustering_resolution,
+    k_param = params$k_param
+  )
+  
+  if (isTRUE(params$save_intermediate_files)) {
+    saveRDS(srt_obj, reference_file)
+  }
+}
+
+cat("Integrated reference dimensions (features x cells):\n")
+print(dim(srt_obj))
+```
+
 ## Reference overview plots
 
 ```{r reference_overview_plots, echo=TRUE, fig.width=12, fig.height=6}
 p_dim_default <- scCustomize::DimPlot_scCustom(
-  srt_obj_raw,
+  srt_obj,
   aspect_ratio = 1
 )
 
@@ -340,7 +345,7 @@ p_dim_celltype <- scCustomize::DimPlot_scCustom(
 )
 
 p_qc <- scCustomize::FeaturePlot_scCustom(
-  seurat_object = srt_obj_raw,
+  seurat_object = srt_obj,
   aspect_ratio = 1,
   features = c("nCount_RNA", "nFeature_RNA"),
   pt.size = 0.1,
@@ -367,13 +372,13 @@ kable(
 marker_plot_list <- lapply(seq_len(nrow(marker_feature_table)), function(i) {
   marker_name <- marker_feature_table$CellType[i]
   gene_id <- marker_feature_table$GeneID[i]
-
+  
   p <- plot_smed_marker_feature(
     obj = srt_obj_raw,
     feature = gene_id,
     title = paste0(marker_name, ": ", gene_id)
   )
-
+  
   print(p)
   p
 })
@@ -414,21 +419,21 @@ if (isTRUE(params$save_figures)) {
     out_dir = figure_dir,
     dpi = params$figure_dpi
   )
-
+  
   save_smed_reference_plot(
     plot_obj = p_dim_celltype,
     file_stub = "dimplot_reference_celltype",
     out_dir = figure_dir,
     dpi = params$figure_dpi
   )
-
+  
   save_smed_reference_plot(
     plot_obj = p_qc,
     file_stub = "featureplot_reference_qc",
     out_dir = figure_dir,
     dpi = params$figure_dpi
   )
-
+  
   for (nm in names(marker_plot_list)) {
     save_smed_reference_plot(
       plot_obj = marker_plot_list[[nm]],
@@ -437,7 +442,7 @@ if (isTRUE(params$save_figures)) {
       dpi = params$figure_dpi
     )
   }
-
+  
   save_smed_reference_plot(
     plot_obj = p_dot,
     file_stub = "dotplot_reference_markers",
