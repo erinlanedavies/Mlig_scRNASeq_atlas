@@ -1,0 +1,9 @@
+- SAMap for neural and integument
+
+- Visualize the DASH vs no DASH to show the improvements
+ - Volcano plots
+ - nFeatures
+ - fraction of reads that mapped in the mitochondrial genes
+ - all samples
+
+- Updated rds object with SAMap annotation (three resolutions)

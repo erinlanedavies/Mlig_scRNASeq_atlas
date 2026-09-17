@@ -24,11 +24,11 @@ renv::load(project = getwd())
 #		      output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
 #		      )
 
-rmarkdown::render(  
-		    "Rmarkdown/06_4_Export_M_lignano_Musculature_to_H5AD.Rmd",
-		      output_file = "06_4_Export_M_lignano_Musculature_to_H5AD.html",
-		      output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
-		      )
+#rmarkdown::render(  
+#		    "Rmarkdown/06_4_Export_M_lignano_Musculature_to_H5AD.Rmd",
+#		      output_file = "06_4_Export_M_lignano_Musculature_to_H5AD.html",
+#		      output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
+#		      )
 
 #rmarkdown::render(  
 #		    "Rmarkdown/06_5_Export_M_lignano_Progenitor_System_to_H5AD.Rmd",
@@ -66,11 +66,11 @@ rmarkdown::render(
 #		      output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
 #		      )
 
-#rmarkdown::render(
-#		    "Rmarkdown/07_5_Subset_S_mediterranea_Neural_cells_to_H5AD.Rmd",
-#		      output_file = "07_5_Subset_S_mediterranea_Neural_cells_to_H5AD.html",
-#		      output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
-#		      )
+rmarkdown::render(
+		    "Rmarkdown/07_5_Subset_S_mediterranea_Neural_cells_to_H5AD.Rmd",
+		      output_file = "07_5_Subset_S_mediterranea_Neural_cells_to_H5AD.html",
+		      output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
+		      )
 
 #rmarkdown::render(
 #		    "Rmarkdown/07_6_Subset_S_mediterranea_Neoblast_cells_to_H5AD.Rmd",

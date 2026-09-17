@@ -1,5 +1,5 @@
 ---
-title: "06_1_Export_M_lignano_All_Neural_to_H5AD"
+title: "Export_Yamaguchi_to_H5AD"
 author: "Francisco Pereira Lobo"
 date: "`r Sys.Date()`"
 output:
@@ -12,11 +12,8 @@ output:
     fig_caption: true
 params:
   project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas"
-  input_seurat_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/Neural_integrated_merged.rds"
-  output_h5ad_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/Neural_integrated_merged.h5ad"
-  root_cluster_id: "Mlig_neural_"
-  cluster_id_col: "sct_neural_snn_res.0.8"
-  final_label_col: "final_label_SAMap"
+  input_seurat_file: "/data/YamaguchiLab/Francisco/gastruloid/results/01_12_2025/srt_obj_all.rds"
+  output_h5ad_file: "/data/YamaguchiLab/Francisco/gastruloid/results/01_12_2025/srt_obj_all.h5ad"
   assay: "RNA"
   seed: 42
 ---
@@ -25,7 +22,7 @@ params:
 
 This report:
 
-- loads the *M. lignano* Seurat with neural cells
+- loads the *Yamaguchi* Seurat created by CreateYamaguchiSeuratObject.R
 - writes the seurat object as `.h5ad`
 
 ## RMarkdown Setup
@@ -143,16 +140,7 @@ DefaultAssay(srt_obj) <- params$assay
 
 srt_obj <- JoinLayers(srt_obj)
 
-new_col_name <- params$final_label_col
 cluster_id_col <- params$cluster_id_col
-root_cluster_id <- params$root_cluster_id
-
-final_label <- srt_obj[[cluster_id_col]][,1]
-
-final_label <- paste0(root_cluster_id, final_label)
-
-srt_obj[[new_col_name]] <- final_label
-
 
 reference_summary <- data.frame(
   metric = c("n_features", "n_cells", "default_assay"),
@@ -174,7 +162,7 @@ zellkonverter::writeH5AD(
 )
 
 output_table <- data.frame(
-  object = c("S. mediterranea Seurat object", "S. mediterranea H5AD object"),
+  object = c("Gottgens Seurat object", "Gottgens H5AD object"),
   file = c(params$input_seurat_file, params$output_h5ad_file),
   exists = file.exists(c(params$output_h5ad_file, params$output_seurat_file)),
   stringsAsFactors = FALSE

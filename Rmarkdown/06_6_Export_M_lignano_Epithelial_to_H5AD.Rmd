@@ -16,7 +16,7 @@ params:
   output_h5ad_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/objs/Integument_Subset_integrated_merged.h5ad"
   assay: "RNA"
   seed: 42
-  root_cluster_id: "Mlig_epithelial_"
+  root_cluster_id: "Mlig_integument_"
   cluster_id_col: "sct_integument_snn_res.0.8"
   final_label_col: "final_label_SAMap"
 
@@ -26,7 +26,7 @@ params:
 
 This report:
 
-- loads the *M. lignano* Seurat with ciliated neural cells
+- loads the *M. lignano* Seurat with integument cells
 - writes the seurat object as `.h5ad`
 
 ## RMarkdown Setup

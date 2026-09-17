@@ -1,5 +1,5 @@
 ---
-title: "07_4_Subset_S_mediterranea_Neural_cells_to_H5AD"
+title: "07_5_Subset_S_mediterranea_Neural_cells_to_H5AD"
 author: "Francisco Pereira Lobo"
 date: "`r Sys.Date()`"
 output:
@@ -14,13 +14,15 @@ params:
   input_seurat_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mediterranea/S_mediterranea_seurat_annotated.rds"
   output_h5ad_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mediterranea/S_mediterranea_Neural_cells.h5ad"
   output_seurat_file: "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/data/ref_atlas/S_mediterranea/S_mediterranea_Neural_cells.rds"
-  annotation_col: "Major.cluster.description"
+#  annotation_col: "Major.cluster.description"
+  annotation_col: "Cluster.number"
   clusters_to_keep:
     value:
-      - "Neural"
+      - [8, 9, 18, 20, 21, 23, 32, 33, 34, 36]
+#      - "Neural"
 
   root_cluster_id: "Smed_neural_"
-  cluster_id_col: "Cluster.number"
+  cluster_id_col: "Subcluster.Number"
   final_label_col: "final_label_SAMap"
 
   assay: "RNA"
@@ -193,6 +195,14 @@ kable(subset_summary, caption = "Summary of the neural-only Seurat object")
 
 ```{r rebuild_counts_based_object, echo=TRUE}
 
+# small function to sanitize labels
+sanitize <- function(x) {
+  x <- sub(";.*$", "", x)                # Remove everything after ";"
+  x <- sub("\\s+$", "", x)          # Remove trailing whitespace
+  x <- gsub("\\s+", "_", x)         # Replace other whitespace runs with _
+  gsub("[^[:alnum:]_]", "", x) # Remove non-alphanumeric characters
+}
+
 srt_obj_subset <- JoinLayers(srt_obj_subset)
 
 rna_counts <- Seurat::GetAssayData(
@@ -212,6 +222,8 @@ cluster_id_col <- params$cluster_id_col
 root_cluster_id <- params$root_cluster_id
 
 final_label <- srt_obj_subset_export[[cluster_id_col]][,1]
+
+final_label <- sanitize(final_label)
 
 final_label <- paste0(root_cluster_id, final_label)
 
