@@ -11,8 +11,15 @@ renv::load(project = getwd())
 #  output_dir  = "/data/YamaguchiLab/Francisco/gastruloid/results/08_06_2026/"
 #)
 
+#rmarkdown::render(
+#  "Rmarkdown/Export_Yamaguchi_to_H5AD.Rmd",
+#   output_file = "Export_Yamaguchi_to_H5AD.html",
+#   output_dir  = "/data/YamaguchiLab/Francisco/gastruloid/results/08_06_2026/"
+#)
+
 rmarkdown::render(
-  "Rmarkdown/Export_Yamaguchi_to_H5AD.Rmd",
-   output_file = "Export_Yamaguchi_to_H5AD.html",
-   output_dir  = "/data/YamaguchiLab/Francisco/gastruloid/results/08_06_2026/"
+  "Rmarkdown/Export_Tyser_to_H5AD.Rmd",
+   output_file = "Export_Tyser_to_H5AD.html",
+   output_dir  = "/data/YamaguchiLab/Francisco/HumanGastruloid/results/09_18_2026/"
 )
+

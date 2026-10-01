@@ -1,0 +1,327 @@
+.
+├── biowulf
+│   ├── render_rmd.R
+│   └── run_r.sh
+├── config
+├── data
+│   └── metadata
+│       ├── cell_cycle_genes.tsv
+│       ├── cell_type_color_code_ml.tsv
+│       ├── cell_type_color_code_sc.tsv
+│       ├── cell_type_color_codes_level_1.tsv
+│       ├── cell_type_color_code_sm_sc_ml.tsv
+│       ├── cell_type_color_code_sm.tsv
+│       ├── curated_marker_genes.tsv
+│       ├── geneid2go.map
+│       ├── go2geneids.map
+│       ├── literature_marker_genes2.tsv
+│       ├── literature_marker_genes.tsv
+│       ├── sample_color_codes.tsv
+│       ├── sample_metadata.tsv
+│       ├── S_med_marker_genes.tsv
+│       └── stage_color_codes.tsv
+├── docs
+│   ├── environment_setup.md
+│   └── renv_workflow.md
+├── environment.yml
+├── err
+├── Mlig_scRNASeq_atlas.Rproj
+├── notebooks
+│   ├── SAMap_Cathepsin.ipynb
+│   ├── SAMap_Digestive.ipynb
+│   ├── SAMap_Epithelial.ipynb
+│   ├── SAMap_GPU_Ciliated_Neural.ipynb
+│   ├── SAMap_GPU_scaffold.ipynb
+│   ├── SAMap_Major_Cell_Types.ipynb
+│   ├── SAMap_Musculature_Subset.ipynb
+│   ├── SAMap_Neural.ipynb
+│   ├── SAMap_Nonciliated_Neural.ipynb
+│   ├── SAMap_Progenitor.ipynb
+│   └── SAMap_scaffold.ipynb
+├── packages.txt
+├── R
+│   ├── FixMetadataCellTypeMarkers.R
+│   ├── report_utils
+│   │   ├── dotplot_helpers.R
+│   │   ├── go_enrichment_helpers.R
+│   │   ├── integration_sct.R
+│   │   ├── io.R
+│   │   ├── metadata.R
+│   │   ├── module_score_helpers.R
+│   │   ├── qc_plot_helpers.R
+│   │   ├── qc.R
+│   │   ├── seurat.R
+│   │   ├── smed_reference_helpers.R
+│   │   ├── source_report_functions.R
+│   │   └── umap_helpers.R
+│   └── source_report_functions.R
+├── README.md
+├── renv
+│   ├── activate.R
+│   ├── library
+│   │   └── linux-rocky-8.7
+│   │       └── R-4.5
+│   │           └── x86_64-pc-linux-gnu
+│   │               └── renv
+│   │                   ├── bin
+│   │                   │   ├── renv
+│   │                   │   └── renv.bat
+│   │                   ├── config.yml
+│   │                   ├── DESCRIPTION
+│   │                   ├── doc
+│   │                   │   ├── ci.html
+│   │                   │   ├── ci.R
+│   │                   │   ├── ci.Rmd
+│   │                   │   ├── docker.html
+│   │                   │   ├── docker.R
+│   │                   │   ├── docker.Rmd
+│   │                   │   ├── faq.html
+│   │                   │   ├── faq.R
+│   │                   │   ├── faq.Rmd
+│   │                   │   ├── index.html
+│   │                   │   ├── package-install.html
+│   │                   │   ├── package-install.R
+│   │                   │   ├── package-install.Rmd
+│   │                   │   ├── packages.html
+│   │                   │   ├── package-sources.html
+│   │                   │   ├── package-sources.R
+│   │                   │   ├── package-sources.Rmd
+│   │                   │   ├── packages.R
+│   │                   │   ├── packages.Rmd
+│   │                   │   ├── packrat.html
+│   │                   │   ├── packrat.R
+│   │                   │   ├── packrat.Rmd
+│   │                   │   ├── profiles.html
+│   │                   │   ├── profiles.R
+│   │                   │   ├── profiles.Rmd
+│   │                   │   ├── python.html
+│   │                   │   ├── python.R
+│   │                   │   ├── python.Rmd
+│   │                   │   ├── renv.html
+│   │                   │   ├── renv.R
+│   │                   │   ├── renv.Rmd
+│   │                   │   ├── rsconnect.html
+│   │                   │   ├── rsconnect.R
+│   │                   │   └── rsconnect.Rmd
+│   │                   ├── ext
+│   │                   │   └── renv.c
+│   │                   ├── help
+│   │                   │   ├── activate.html
+│   │                   │   ├── aliases.rds
+│   │                   │   ├── AnIndex
+│   │                   │   ├── autoload.html
+│   │                   │   ├── checkout.html
+│   │                   │   ├── clean.html
+│   │                   │   ├── config.html
+│   │                   │   ├── consent.html
+│   │                   │   ├── deactivate.html
+│   │                   │   ├── dependencies.html
+│   │                   │   ├── diagnostics.html
+│   │                   │   ├── embed.html
+│   │                   │   ├── equip.html
+│   │                   │   ├── figures
+│   │                   │   │   └── logo.svg
+│   │                   │   ├── graph.html
+│   │                   │   ├── history.html
+│   │                   │   ├── hydrate.html
+│   │                   │   ├── imbue.html
+│   │                   │   ├── init.html
+│   │                   │   ├── install.html
+│   │                   │   ├── isolate.html
+│   │                   │   ├── load.html
+│   │                   │   ├── lockfile-api.html
+│   │                   │   ├── lockfile_create.html
+│   │                   │   ├── lockfile.html
+│   │                   │   ├── lockfile_modify.html
+│   │                   │   ├── lockfile_read.html
+│   │                   │   ├── lockfiles.html
+│   │                   │   ├── lockfile_validate.html
+│   │                   │   ├── lockfile_write.html
+│   │                   │   ├── migrate.html
+│   │                   │   ├── modify.html
+│   │                   │   ├── paths.html
+│   │                   │   ├── paths.rds
+│   │                   │   ├── project.html
+│   │                   │   ├── purge.html
+│   │                   │   ├── rebuild.html
+│   │                   │   ├── record.html
+│   │                   │   ├── refresh.html
+│   │                   │   ├── rehash.html
+│   │                   │   ├── remote.html
+│   │                   │   ├── remove.html
+│   │                   │   ├── renv.html
+│   │                   │   ├── renv_lockfile_from_manifest.html
+│   │                   │   ├── renv-package.html
+│   │                   │   ├── renv.rdb
+│   │                   │   ├── renv.rdx
+│   │                   │   ├── repair.html
+│   │                   │   ├── restore.html
+│   │                   │   ├── retrieve.html
+│   │                   │   ├── revert.html
+│   │                   │   ├── run.html
+│   │                   │   ├── sandbox.html
+│   │                   │   ├── scaffold.html
+│   │                   │   ├── settings.html
+│   │                   │   ├── snapshot.html
+│   │                   │   ├── status.html
+│   │                   │   ├── sysreqs.html
+│   │                   │   ├── update.html
+│   │                   │   ├── upgrade.html
+│   │                   │   ├── use.html
+│   │                   │   ├── use_python.html
+│   │                   │   ├── vendor.html
+│   │                   │   └── vulns.html
+│   │                   ├── html
+│   │                   │   ├── 00Index.html
+│   │                   │   ├── activate.html
+│   │                   │   ├── autoload.html
+│   │                   │   ├── checkout.html
+│   │                   │   ├── clean.html
+│   │                   │   ├── config.html
+│   │                   │   ├── consent.html
+│   │                   │   ├── dependencies.html
+│   │                   │   ├── diagnostics.html
+│   │                   │   ├── embed.html
+│   │                   │   ├── equip.html
+│   │                   │   ├── graph.html
+│   │                   │   ├── history.html
+│   │                   │   ├── hydrate.html
+│   │                   │   ├── imbue.html
+│   │                   │   ├── init.html
+│   │                   │   ├── install.html
+│   │                   │   ├── isolate.html
+│   │                   │   ├── load.html
+│   │                   │   ├── lockfile-api.html
+│   │                   │   ├── lockfiles.html
+│   │                   │   ├── lockfile_validate.html
+│   │                   │   ├── migrate.html
+│   │                   │   ├── modify.html
+│   │                   │   ├── paths.html
+│   │                   │   ├── project.html
+│   │                   │   ├── purge.html
+│   │                   │   ├── R.css
+│   │                   │   ├── rebuild.html
+│   │                   │   ├── record.html
+│   │                   │   ├── refresh.html
+│   │                   │   ├── rehash.html
+│   │                   │   ├── remote.html
+│   │                   │   ├── remove.html
+│   │                   │   ├── renv_lockfile_from_manifest.html
+│   │                   │   ├── renv-package.html
+│   │                   │   ├── repair.html
+│   │                   │   ├── restore.html
+│   │                   │   ├── retrieve.html
+│   │                   │   ├── run.html
+│   │                   │   ├── sandbox.html
+│   │                   │   ├── scaffold.html
+│   │                   │   ├── settings.html
+│   │                   │   ├── snapshot.html
+│   │                   │   ├── status.html
+│   │                   │   ├── sysreqs.html
+│   │                   │   ├── update.html
+│   │                   │   ├── upgrade.html
+│   │                   │   ├── use_python.html
+│   │                   │   ├── vendor.html
+│   │                   │   └── vulns.html
+│   │                   ├── INDEX
+│   │                   ├── libs
+│   │                   │   └── renv.so
+│   │                   ├── LICENSE
+│   │                   ├── Meta
+│   │                   │   ├── features.rds
+│   │                   │   ├── hsearch.rds
+│   │                   │   ├── links.rds
+│   │                   │   ├── nsInfo.rds
+│   │                   │   ├── package.rds
+│   │                   │   ├── Rd.rds
+│   │                   │   └── vignette.rds
+│   │                   ├── NAMESPACE
+│   │                   ├── NEWS.md
+│   │                   ├── R
+│   │                   │   ├── renv
+│   │                   │   ├── renv.rdb
+│   │                   │   └── renv.rdx
+│   │                   ├── repos
+│   │                   │   └── src
+│   │                   │       └── contrib
+│   │                   │           ├── PACKAGES
+│   │                   │           ├── PACKAGES.gz
+│   │                   │           ├── PACKAGES.rds
+│   │                   │           └── renv_1.1.7.tar.gz
+│   │                   ├── resources
+│   │                   │   ├── activate.R
+│   │                   │   ├── scripts-git-askpass.cmd
+│   │                   │   ├── scripts-git-askpass.sh
+│   │                   │   ├── vendor
+│   │                   │   │   └── renv.R
+│   │                   │   ├── watchdog-process.R
+│   │                   │   └── WELCOME
+│   │                   ├── rstudio
+│   │                   │   └── addins.dcf
+│   │                   ├── schema
+│   │                   │   └── draft-07.renv.lock.schema.json
+│   │                   └── sysreqs
+│   │                       └── sysreqs.json
+│   ├── settings.json
+│   └── staging
+├── renv.lock
+├── restore_renv.R
+├── Rmarkdown
+│   ├── 00_2_CompareDASH_noDASH.Rmd
+│   ├── 00_CreateSeuratFromCounts.Rmd
+│   ├── 01_ComputeQCMetrics.Rmd
+│   ├── 02_FilterPlotQCData.Rmd
+│   ├── 02_IntegrateSeurat.Rmd
+│   ├── 03_ComputeSCT.Rmd
+│   ├── 04_IntegrateSeuratObjects.Rmd
+│   ├── 05_ComputeModuleScores.Rmd
+│   ├── 06_1_Export_M_lignano_Neural_to_H5AD.Rmd
+│   ├── 06_2_Export_M_lignano_Digestive_System_to_H5AD.Rmd
+│   ├── 06_3_Export_M_lignano_Cathepsin_to_H5AD.Rmd
+│   ├── 06_4_Export_M_lignano_Musculature_to_H5AD.Rmd
+│   ├── 06_4_Export_M_lignano_Reproductive_System_to_H5AD.Rmd
+│   ├── 06_5_Export_M_lignano_Progenitor_System_to_H5AD.Rmd
+│   ├── 06_6_Export_M_lignano_Epithelial_to_H5AD.Rmd
+│   ├── 06_Export_M_lignano_to_H5AD.Rmd
+│   ├── 07_1_Export_S_mediterranea_to_H5AD.Rmd
+│   ├── 07_1_Subset_S_mediterranea_Intestine_to_H5AD.Rmd
+│   ├── 07_2_Subset_S_mediterranea_Cathepsin_positive_cells_to_H5AD.Rmd
+│   ├── 07_3_Subset_S_mediterranea_Epidermal_cells_to_H5AD.Rmd
+│   ├── 07_4_Subset_S_mediterranea_Muscle_cells_to_H5AD.Rmd
+│   ├── 07_5_Subset_S_mediterranea_Neural_cells_to_H5AD.Rmd
+│   ├── 07_6_Subset_S_mediterranea_Neoblast_cells_to_H5AD.Rmd
+│   ├── 07_PrepareReferenceAtlas_S_mediterranea.Rmd
+│   ├── 08_1_Export_S_mansoni_to_H5AD.Rmd
+│   ├── 08_1_SubsetReferenceAtlas_S_mansoni_Gut.Rmd
+│   ├── 08_2_Subset_S_mansoni_Parenchyma_cells_to_H5AD.Rmd
+│   ├── 08_3_Subset_S_mansoni_Tegument_cells_to_H5AD.Rmd
+│   ├── 08_4_Subset_S_mansoni_muscle_cells_to_H5AD.Rmd
+│   ├── 08_5_Subset_S_mansoni_neuron_cells_to_H5AD.Rmd
+│   ├── 08_6_Subset_S_mansoni_neoblast_cells_to_H5AD.Rmd
+│   ├── 08_7_Subset_S_mansoni_progeny_cells_to_H5AD.Rmd
+│   ├── 08_8_Subset_S_mansoni_gut_cells_to_H5AD.Rmd
+│   ├── 08_9_Subset_S_mansoni_flame_cells_to_H5AD.Rmd
+│   ├── 08_PrepareReferenceAtlas_S_mansoni.Rmd
+│   ├── 09_GO_enrichment_gut.Rmd
+│   ├── Export_Gottgens_to_H5AD.Rmd
+│   ├── Export_Liberali_to_H5AD.Rmd
+│   ├── Export_Tyser_to_H5AD.Rmd
+│   ├── Export_Yamaguchi_to_H5AD.Rmd
+│   └── tmp.txt
+├── scripts
+│   ├── KnitReports.R
+│   ├── KnitReports_subset.R
+│   └── KnitReports_Terry.R
+├── setup_renv.R
+├── test_import.py
+├── tmp
+│   ├── 01_Integrate_seurat_objs_Erin_data_no_doubletfinder_DASH.R
+│   ├── AnnotateCellTypes2.R
+│   ├── AnnotateCellTypes_Gut.R
+│   ├── AnnotateCellTypes.R
+│   ├── CompareDASHvsNODASH.R
+│   └── RunGOEnrichmentAnalysis.R
+├── tmp.txt
+└── TODO.txt
+
+35 directories, 289 files

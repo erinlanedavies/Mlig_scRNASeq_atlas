@@ -1,0 +1,1358 @@
+---
+title: "Compare DASH vs non-DASH Adult Samples"
+author: "Francisco Pereira Lobo"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: cosmo
+    code_folding: "hide"
+    fig_caption: true
+params:
+  project_root: "~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas"
+  nondash_rds: "/data/Mlig_scRNA_Seq/Francisco/results/objs/S1_Adult_Unsorted_filt.rds"
+  dash_rds: "/data/Mlig_scRNA_Seq/Francisco/results/objs/S2_Adult_Unsorted_DASH_filt.rds"
+  sample_id_col: "sample_ID"
+  nondash_sample_id: "1_Adult_Unsorted"
+  dash_sample_id: "2_Adult_Unsorted_DASH"
+  sct_method: "glmGamPoi"
+  sct_vars_to_regress: !r c("percent.mito")
+  integration_nfeatures: 3000
+  integration_dims: 40
+  clustering_resolutions: !r c(0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2, 3, 4)
+  neighbor_k: 20
+  umap_dims: 30
+  use_cached_files: true
+  save_intermediate_files: true
+  out_dir: "/data/Mlig_scRNA_Seq/Francisco/results/objs/"
+  sct_seurat_file_name: "seurat_sct_DASH_noDASH.rds"
+  sct_seurat_list_file_name: "seurat_sct_list_DASH_noDASH.rds"
+  sct_var_genes_file_name: "var_genes_sct_DASH_noDASH.rds"
+  integrated_srt_file_name: "seurat_integrated_DASH_noDASH.rds"
+  figure_dir: "/data/Mlig_scRNA_Seq/Francisco/results/images/DASH_vs_nonDASH/"
+  table_dir: "/data/Mlig_scRNA_Seq/Francisco/results/tables/DASH_vs_nonDASH/"
+  volcano_p_cutoff: 0.000000001
+  volcano_fc_cutoff: 1.0
+  mito_rrna_genes: !r c("Mlig999030.1", "Mlig999008.1")
+  figure_dpi: 600
+  seed: 42
+---
+
+# Description
+
+Compare adult *Macrostomum lignano* scRNA-seq samples processed with and without DASH. The report loads the two filtered Seurat objects, performs per-sample SCTransform, compares gene expression using the SCT and RNA assays, and examines mitochondrial rRNA expression.
+
+Intermediate objects and differential-expression results are cached and reused when available. Figures are embedded in the HTML report and saved as publication-quality PDF and high-resolution PNG files.
+
+## RMarkdown setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE,
+                      fig.align="center", fig.width=8, fig.height=5, dpi=150)
+set.seed(params$seed)
+```
+
+## Preparing the environment
+
+### Loading libraries
+
+```{r load_libraries}
+library(Seurat)
+library(Matrix)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(sctransform)
+library(scCustomize)
+library(EnhancedVolcano)
+library(patchwork)
+```
+
+### Parameters
+
+```{r print_parameters}
+str(params)
+```
+
+### Load project functions
+
+```{r load_functions}
+bootstrap <- file.path(normalizePath(params$project_root, mustWork=TRUE),
+                       "R", "source_report_functions.R")
+if (!file.exists(bootstrap)) stop("Bootstrap file not found: ", bootstrap)
+source(bootstrap)
+
+source_report_functions(
+  base_dir=params$project_root,
+  rel_dir="R/report_utils",
+  files=c("io.R", "seurat.R")
+)
+```
+
+### Report-specific functions
+
+```{r report_helpers}
+save_publication_plot <- function(p, name, width=8, height=6) {
+  dir.create(params$figure_dir, recursive=TRUE, showWarnings=FALSE)
+  ggsave(file.path(params$figure_dir, paste0(name, ".pdf")),
+         p, width=width, height=height, units="in", bg="white")
+  ggsave(file.path(params$figure_dir, paste0(name, ".png")),
+         p, width=width, height=height, units="in",
+         dpi=params$figure_dpi, bg="white")
+}
+
+get_fc_col <- function(x) {
+  z <- intersect(c("avg_log2FC", "avg_logFC"), colnames(x))
+  if (!length(z)) stop("No average log-fold-change column found.")
+  z[1]
+}
+
+make_volcano <- function(x, title) {
+  EnhancedVolcano(
+    x,
+    lab=rownames(x),
+    x=get_fc_col(x),
+    y="p_val",
+    xlab=bquote(~Log[2]~"fold change"),
+    pCutoff=params$volcano_p_cutoff,
+    FCcutoff=params$volcano_fc_cutoff,
+    pointSize=2,
+    labSize=3,
+    title=title,
+    colAlpha=1,
+    legendPosition="right",
+    drawConnectors=TRUE,
+    widthConnectors=0.5
+  )
+}
+
+de_summary <- function(x) {
+  fc <- x[[get_fc_col(x)]]
+  data.frame(
+    Metric=c("Genes tested",
+             "Higher in non-DASH",
+             "Higher in DASH",
+             paste0("p < ", params$volcano_p_cutoff)),
+    N=c(nrow(x),
+        sum(fc >= params$volcano_fc_cutoff, na.rm=TRUE),
+        sum(fc <= -params$volcano_fc_cutoff, na.rm=TRUE),
+        sum(x$p_val < params$volcano_p_cutoff, na.rm=TRUE))
+  )
+}
+```
+
+### Output directories
+
+```{r output_directories}
+dir.create(params$out_dir, recursive=TRUE, showWarnings=FALSE)
+dir.create(params$figure_dir, recursive=TRUE, showWarnings=FALSE)
+dir.create(params$table_dir, recursive=TRUE, showWarnings=FALSE)
+
+kable(data.frame(Type=c("Objects","Figures","Tables"),
+                 Directory=c(params$out_dir,params$figure_dir,params$table_dir)),
+      caption="Analysis output directories")
+```
+
+## Load input objects
+
+```{r load_objects}
+stopifnot(file.exists(params$nondash_rds), file.exists(params$dash_rds))
+
+nondash_obj <- readRDS(params$nondash_rds)
+dash_obj <- readRDS(params$dash_rds)
+
+input_summary <- data.frame(
+  Sample=c("Non-DASH","DASH"),
+  Features=c(nrow(nondash_obj),nrow(dash_obj)),
+  Cells=c(ncol(nondash_obj),ncol(dash_obj)),
+  Assays=c(paste(Assays(nondash_obj),collapse=", "),
+           paste(Assays(dash_obj),collapse=", "))
+)
+kable(input_summary, caption="Input Seurat objects")
+```
+
+## Merge and split by sample
+
+```{r merge_split}
+merged_raw <- merge(
+  nondash_obj, y=dash_obj,
+  add.cell.ids=c("S1_Adult_Unsorted_filt","S2_Adult_Unsorted_DASH_filt"),
+  project="scRNA_Seq_M_lignano"
+)
+merged_raw <- JoinLayers(merged_raw)
+
+if (!params$sample_id_col %in% colnames(merged_raw@meta.data))
+  stop("Missing metadata column: ", params$sample_id_col)
+
+sample_list_raw <- SplitObject(merged_raw, split.by=params$sample_id_col)
+
+kable(data.frame(
+  Sample=names(sample_list_raw),
+  Features=vapply(sample_list_raw,nrow,numeric(1)),
+  Cells=vapply(sample_list_raw,ncol,numeric(1))
+), caption="Objects after splitting by sample")
+
+rm(merged_raw)
+gc()
+```
+
+## SCTransform and feature selection
+
+```{r compute_sct}
+sct_file <- file.path(params$out_dir, params$sct_seurat_list_file_name)
+features_file <- file.path(params$out_dir, params$sct_vars_to_regress)
+
+if (isTRUE(params$use_cached_files) &&
+    file.exists(sct_file) && file.exists(features_file)) {
+  
+  cat("Loading cached SCT objects and feature list.\n")
+  sample_list <- readRDS(sct_file)
+  var_features <- readRDS(features_file)
+  
+} else {
+  options(future.globals.maxSize=50000*1024^2)
+  
+  sample_list <- lapply(names(sample_list_raw), function(sid) {
+    cat("Running SCTransform:", sid, "\n")
+    SCTransform(
+      sample_list_raw[[sid]],
+      method=params$sct_method,
+      vars.to.regress=params$sct_vars_to_regress,
+      return.only.var.genes=FALSE,
+      verbose=FALSE
+    )
+  })
+  names(sample_list) <- names(sample_list_raw)
+  
+  var_features <- SelectIntegrationFeatures(
+    object.list=sample_list,
+    nfeatures=params$integration_nfeatures
+  )
+  
+  if (isTRUE(params$save_intermediate_files)) {
+    saveRDS(sample_list,sct_file)
+    saveRDS(var_features,features_file)
+  }
+}
+
+kable(data.frame(
+  Sample=names(sample_list),
+  Cells=vapply(sample_list,ncol,numeric(1)),
+  Features=vapply(sample_list,nrow,numeric(1)),
+  VariableFeatures=vapply(sample_list,function(x) length(VariableFeatures(x)),numeric(1))
+), caption="Summary after SCTransform")
+
+cat("Shared integration features:", length(var_features), "\n")
+```
+
+## Merge SCT objects
+
+```{r merge_sct}
+merged_sct_file <- file.path(params$out_dir, params$sct_seurat_file_name)
+
+if (isTRUE(params$use_cached_files) && file.exists(merged_sct_file)) {
+  all_sct <- readRDS(merged_sct_file)
+} else {
+  needed <- c(params$nondash_sample_id,params$dash_sample_id)
+  missing <- setdiff(needed,names(sample_list))
+  if (length(missing))
+    stop("Samples absent from SCT list: ",paste(missing,collapse=", "))
+  
+  all_sct <- merge(
+    sample_list[[params$nondash_sample_id]],
+    y=sample_list[params$dash_sample_id],
+    project="scRNA_Seq_Mlig",
+    merge.data=TRUE
+  )
+  
+  if (isTRUE(params$save_intermediate_files))
+    saveRDS(all_sct,merged_sct_file)
+}
+
+Idents(all_sct) <- params$sample_id_col
+
+kable(data.frame(
+  Metric=c("Features","Cells","Assays"),
+  Value=c(nrow(all_sct),ncol(all_sct),paste(Assays(all_sct),collapse=", "))
+), caption="Merged SCT object")
+```
+
+# RPCA integration and dimensionality reduction
+
+The two SCT-processed samples are integrated using the RPCA workflow below. To keep the integration object relatively lean during the computationally intensive integration step, the workflow first creates the integrated assay and computes PCA, UMAP, nearest-neighbor graphs, and clustering. The original RNA and SCT assays are then transferred from the merged SCT object after integration.
+
+This separation also ensures that downstream expression visualization and differential-expression analyses retain access to the original RNA/SCT data.
+
+```{r rpca_integration}
+
+options(future.globals.maxSize = 100 * 1024^3) # Sets the limit to 100 GiB
+
+integrated_file <- file.path(params$out_dir, params$integrated_srt_file_name)
+
+dims_use <- seq_len(params$integration_dims)
+umap_dims_use <- seq_len(
+  min(params$umap_dims, params$integration_dims)
+)
+
+# -------------------------------------------------------------------------
+# 1. Load existing integration or calculate it
+# -------------------------------------------------------------------------
+
+if (
+  isTRUE(params$use_cached_files) &&
+  file.exists(integrated_file)
+) {
+  
+  cat(
+    "Loading cached RPCA-integrated object:\n",
+    integrated_file,
+    "\n"
+  )
+  
+  all_integrated <- readRDS(integrated_file)
+  
+} else {
+  
+  subs <- sample_list
+  global_features <- var_features
+  
+  cat("Preparing SCT objects for RPCA integration.\n")
+  
+  subs <- PrepSCTIntegration(
+    object.list = subs,
+    anchor.features = global_features,
+    verbose = FALSE
+  )
+  
+  cat("Running PCA independently for each sample.\n")
+  
+  subs <- lapply(
+    subs,
+    RunPCA,
+    assay = "SCT",
+    features = global_features,
+    verbose = FALSE
+  )
+  
+  cat("Finding integration anchors using RPCA.\n")
+  
+  anchors <- FindIntegrationAnchors(
+    object.list = subs,
+    normalization.method = "SCT",
+    anchor.features = global_features,
+    reduction = "rpca",
+    dims = dims_use
+  )
+  
+  cat("Integrating samples.\n")
+  
+  all_integrated <- IntegrateData(
+    anchorset = anchors,
+    normalization.method = "SCT",
+    dims = dims_use
+  )
+  
+  DefaultAssay(all_integrated) <- "integrated"
+  
+  all_integrated <- FindVariableFeatures(
+    all_integrated
+  )
+  
+  all_integrated <- ScaleData(
+    all_integrated,
+    verbose = FALSE
+  )
+  
+  all_integrated <- RunPCA(
+    all_integrated,
+    verbose = FALSE
+  )
+  
+  all_integrated <- RunUMAP(
+    all_integrated,
+    reduction = "pca",
+    dims = umap_dims_use,
+    seed.use = params$seed,
+    verbose = FALSE
+  )
+  
+  all_integrated <- FindNeighbors(
+    all_integrated,
+    reduction = "pca",
+    dims = dims_use,
+    k.param = params$neighbor_k,
+    return.neighbor = TRUE,
+    nn.method = "annoy",
+    annoy.metric = "cosine",
+    verbose = FALSE
+  )
+  
+  all_integrated <- FindNeighbors(
+    all_integrated,
+    reduction = "pca",
+    dims = dims_use,
+    k.param = params$neighbor_k,
+    compute.SNN = TRUE,
+    nn.method = "annoy",
+    annoy.metric = "cosine",
+    verbose = FALSE
+  )
+  
+  all_integrated <- FindClusters(
+    all_integrated,
+    resolution = params$clustering_resolutions,
+    algorithm = 4,
+    method = "igraph",
+    random.seed = params$seed
+  )
+  
+  rm(subs, anchors)
+  gc()
+}
+integrated_cells <- colnames(all_integrated)
+source_cells <- colnames(all_sct)
+
+cat("Integrated cells:", length(integrated_cells), "\n")
+cat("Source cells:", length(source_cells), "\n")
+
+cat("\nFirst 10 integrated cell names:\n")
+print(head(integrated_cells, 10))
+
+cat("\nFirst 10 source cell names:\n")
+print(head(source_cells, 10))
+
+cat("\nNumber of identical cell names:\n")
+print(length(intersect(integrated_cells, source_cells)))
+
+cat("\nSample IDs in the integrated object:\n")
+print(table(all_integrated[[params$sample_id_col]][, 1]))
+
+cat("\nSample IDs in the source object:\n")
+print(table(all_sct[[params$sample_id_col]][, 1]))
+
+# -------------------------------------------------------------------------
+# 2. Add RNA and SCT assays if necessary
+# -------------------------------------------------------------------------
+
+assays_to_add <- setdiff(
+  c("RNA", "SCT"),
+  Assays(all_integrated)
+)
+
+if (length(assays_to_add) > 0) {
+  
+  cat(
+    "Adding missing assays:",
+    paste(assays_to_add, collapse = ", "),
+    "\n"
+  )
+  
+  integrated_cells <- Cells(all_integrated)
+  source_cells <- Cells(all_sct)
+  
+  # Make sure both objects contain exactly the same cells.
+  if (!setequal(integrated_cells, source_cells)) {
+    
+    missing_from_source <- setdiff(
+      integrated_cells,
+      source_cells
+    )
+    
+    extra_in_source <- setdiff(
+      source_cells,
+      integrated_cells
+    )
+    
+    stop(
+      "Cell identities differ between the integrated and source objects.\n",
+      "Missing from source: ",
+      length(missing_from_source),
+      "\nExtra in source: ",
+      length(extra_in_source)
+    )
+  }
+  
+  # Critical: reorder source cells to match integrated object.
+  assay_source <- all_sct[, integrated_cells]
+  
+  # -----------------------------------------------------------------------
+  # RNA
+  # -----------------------------------------------------------------------
+  
+  if ("RNA" %in% assays_to_add) {
+    
+    cat("Joining RNA layers.\n")
+    
+    assay_source <- JoinLayers(
+      assay_source,
+      assay = "RNA"
+    )
+    
+    cat("Transferring RNA assay.\n")
+    
+    all_integrated[["RNA"]] <- assay_source[["RNA"]]
+  }
+  
+  # -----------------------------------------------------------------------
+  # SCT
+  # -----------------------------------------------------------------------
+  
+  if ("SCT" %in% assays_to_add) {
+    
+    cat("Joining SCT layers.\n")
+    
+    assay_source <- JoinLayers(
+      assay_source,
+      assay = "SCT"
+    )
+    
+    cat("Transferring SCT assay.\n")
+    
+    all_integrated[["SCT"]] <- assay_source[["SCT"]]
+  }
+  
+  rm(assay_source)
+  gc()
+  
+  # Save upgraded cached object.
+  if (isTRUE(params$save_intermediate_files)) {
+    
+    cat(
+      "Updating cached integrated object with RNA/SCT assays.\n"
+    )
+    
+    saveRDS(
+      all_integrated,
+      integrated_file
+    )
+  }
+}
+
+
+# -------------------------------------------------------------------------
+# 3. Validate final object
+# -------------------------------------------------------------------------
+
+required_assays <- c(
+  "integrated",
+  "RNA",
+  "SCT"
+)
+
+missing_assays <- setdiff(
+  required_assays,
+  Assays(all_integrated)
+)
+
+if (length(missing_assays) > 0) {
+  
+  stop(
+    "The final integrated object is missing: ",
+    paste(missing_assays, collapse = ", ")
+  )
+}
+
+cat(
+  "Final assays:",
+  paste(Assays(all_integrated), collapse = ", "),
+  "\n"
+)
+
+cat(
+  "Reductions:",
+  paste(Reductions(all_integrated), collapse = ", "),
+  "\n"
+)
+```
+
+## Integrated UMAP by sample
+
+```{r rpca_umap_sample, fig.width=8, fig.height=6}
+p_umap_sample <- DimPlot(
+  all_integrated,
+  reduction = "umap",
+  group.by = params$sample_id_col
+) +
+  theme_classic(base_size = 12) +
+  labs(
+    title = "RPCA-integrated adult samples",
+    x = "UMAP 1",
+    y = "UMAP 2"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )
+
+print(p_umap_sample)
+
+save_publication_plot(
+  p_umap_sample,
+  "Adult_DASH_noDASH_RPCA_UMAP_by_sample",
+  8,
+  6
+)
+```
+# DASH versus non-DASH differential expression
+
+Positive fold changes below correspond to higher expression in the non-DASH sample (`ident.1`); negative values correspond to higher expression in the DASH sample (`ident.2`).
+
+## SCT assay
+
+```{r de_sct}
+de_sct_file <- file.path(params$table_dir,"DEGS_Adult_nonDASH_vs_DASH_SCT.tsv")
+
+if (isTRUE(params$use_cached_files) && file.exists(de_sct_file)) {
+  de_sct <- read.delim(de_sct_file,row.names=1,check.names=FALSE)
+} else {
+  DefaultAssay(all_sct) <- "SCT"
+  all_sct <- PrepSCTFindMarkers(all_sct)
+  
+  de_sct <- FindMarkers(
+    all_sct,
+    ident.1=params$nondash_sample_id,
+    ident.2=params$dash_sample_id,
+    assay="SCT"
+  )
+  
+  write.table(de_sct,de_sct_file,sep="\t",quote=FALSE,col.names=NA)
+}
+
+kable(head(de_sct[order(de_sct$p_val_adj,de_sct$p_val),],20),
+      digits=4, caption="Top SCT differential-expression results")
+kable(de_summary(de_sct),caption="SCT differential-expression summary")
+```
+
+```{r volcano_sct, fig.width=9, fig.height=7}
+p_volcano_sct <- make_volcano(
+  de_sct,
+  "Adult non-DASH versus DASH — SCT"
+)
+print(p_volcano_sct)
+save_publication_plot(p_volcano_sct,"Adult_nonDASH_vs_DASH_SCT_volcano",9,7)
+```
+
+## RNA assay
+
+```{r de_rna}
+de_rna_file <- file.path(params$table_dir,"DEGS_Adult_nonDASH_vs_DASH_RNA.tsv")
+
+DefaultAssay(all_sct) <- "RNA"
+all_sct <- JoinLayers(all_sct,assay="RNA")
+
+if (isTRUE(params$use_cached_files) && file.exists(de_rna_file)) {
+  de_rna <- read.delim(de_rna_file,row.names=1,check.names=FALSE)
+} else {
+  all_sct <- NormalizeData(
+    all_sct, assay="RNA",
+    normalization.method="LogNormalize",
+    scale.factor=10000,
+    verbose=FALSE
+  )
+  
+  de_rna <- FindMarkers(
+    all_sct,
+    ident.1=params$nondash_sample_id,
+    ident.2=params$dash_sample_id,
+    assay="RNA"
+  )
+  
+  write.table(de_rna,de_rna_file,sep="\t",quote=FALSE,col.names=NA)
+}
+
+kable(head(de_rna[order(de_rna$p_val_adj,de_rna$p_val),],20),
+      digits=4, caption="Top RNA differential-expression results")
+kable(de_summary(de_rna),caption="RNA differential-expression summary")
+```
+
+```{r volcano_rna, fig.width=9, fig.height=7}
+p_volcano_rna <- make_volcano(
+  de_rna,
+  "Adult non-DASH versus DASH — RNA"
+)
+print(p_volcano_rna)
+save_publication_plot(p_volcano_rna,"Adult_nonDASH_vs_DASH_RNA_volcano",9,7)
+```
+
+# Mitochondrial rRNA expression
+
+```{r mitochondrial_genes}
+mito_present <- intersect(params$mito_rrna_genes,rownames(all_sct))
+
+kable(data.frame(
+  Gene=params$mito_rrna_genes,
+  Present=params$mito_rrna_genes %in% rownames(all_sct)
+),caption="Availability of mitochondrial rRNA genes")
+
+if (!length(mito_present))
+  stop("None of the requested mitochondrial rRNA genes are present.")
+```
+
+## Dot plot
+
+```{r mitochondrial_dotplot, fig.width=7, fig.height=4.5}
+DefaultAssay(all_sct) <- "RNA"
+
+p_mito_dot <- DotPlot(
+  all_sct,
+  features=mito_present,
+  group.by=params$sample_id_col,
+  assay="RNA"
+) +
+  RotatedAxis() +
+  theme_classic(base_size=12) +
+  labs(title="Mitochondrial rRNA expression",x=NULL,y="Sample") +
+  theme(plot.title=element_text(face="bold",hjust=0.5))
+
+print(p_mito_dot)
+save_publication_plot(p_mito_dot,"mitochondrial_rRNA_dotplot",7,4.5)
+```
+
+## Violin plots
+
+```{r mitochondrial_violin, fig.width=9, fig.height=5}
+p_mito_violin <- VlnPlot(
+  all_sct,
+  features=mito_present,
+  group.by=params$sample_id_col,
+  assay="RNA",
+  pt.size=0
+) &
+  theme_classic(base_size=12) &
+  theme(axis.text.x=element_text(angle=45,hjust=1))
+
+print(p_mito_violin)
+save_publication_plot(p_mito_violin,"mitochondrial_rRNA_violin",9,5)
+```
+
+## Feature plots on the RPCA UMAP
+
+The mitochondrial genes are visualized using RNA expression values on the UMAP coordinates obtained from RPCA integration.
+
+```{r mitochondrial_featureplot, fig.width=10, fig.height=5}
+DefaultAssay(all_integrated) <- "RNA"
+
+# Ensure RNA layers are available as a single joined assay for visualization.
+all_integrated <- JoinLayers(all_integrated, assay = "RNA")
+
+if (!"data" %in% Layers(all_integrated[["RNA"]])) {
+
+  cat("RNA data layer not found. Running NormalizeData().\n")
+
+  all_integrated <- NormalizeData(
+    all_integrated,
+    assay = "RNA",
+    normalization.method = "LogNormalize",
+    scale.factor = 10000,
+    verbose = FALSE
+  )
+}
+
+mito_present_integrated <- intersect(
+  params$mito_rrna_genes,
+  rownames(all_integrated)
+)
+
+if (length(mito_present_integrated) > 0) {
+  
+  p_mito_feature <- FeaturePlot_scCustom(
+    all_integrated,
+    features = mito_present_integrated,
+    split.by = params$sample_id_col,
+    reduction = "umap",
+    keep.scale = "all",
+    aspect_ratio = 1
+  )
+  
+  print(p_mito_feature)
+  
+  save_publication_plot(
+    p_mito_feature,
+    "mitochondrial_rRNA_featureplots_RPCA_UMAP",
+    15,
+    7.5
+  )
+  
+} else {
+  cat("None of the requested mitochondrial rRNA genes are present in the integrated object.\n")
+}
+```
+
+# Save final object and summarize outputs
+
+```{r save_outputs}
+final_file <- file.path(params$out_dir,"Adult_DASH_noDASH_comparison_final.rds")
+
+if (isTRUE(params$save_intermediate_files))
+  saveRDS(all_sct,final_file)
+
+output_files <- c(
+  sct_file,
+  features_file,
+  merged_sct_file,
+  integrated_file,
+  final_file,
+  de_sct_file,
+  de_rna_file
+)
+
+kable(data.frame(
+  File=output_files,
+  Exists=file.exists(output_files)
+),caption="Analysis output files")
+```
+
+### Deeper analysis of DASH vs noDASH
+
+```{r dash_metrics_setup, message=FALSE, warning=FALSE}
+library(Seurat)
+library(Matrix)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+
+set.seed(params$seed)
+
+# Work exclusively with raw, joined RNA counts.
+all_integrated <- JoinLayers(all_integrated, assay = "RNA")
+
+counts <- GetAssayData(
+  all_integrated,
+  assay = "RNA",
+  layer = "counts"
+)
+
+sample_ids <- as.character(
+  all_integrated[[params$sample_id_col]][colnames(counts), 1]
+)
+
+names(sample_ids) <- colnames(counts)
+
+condition <- ifelse(
+  sample_ids == params$nondash_sample_id, "Non-DASH",
+  ifelse(sample_ids == params$dash_sample_id, "DASH", NA_character_)
+)
+
+stopifnot(!anyNA(condition))
+
+condition <- factor(condition, levels = c("Non-DASH", "DASH"))
+
+mito_genes <- intersect(params$mito_rrna_genes, rownames(counts))
+other_genes <- setdiff(rownames(counts), mito_genes)
+
+if (length(mito_genes) == 0) {
+  stop("None of the mitochondrial rRNA target genes were found.")
+}
+
+mito_counts <- Matrix::colSums(counts[mito_genes, , drop = FALSE])
+total_counts <- Matrix::colSums(counts)
+other_counts <- total_counts - mito_counts
+
+genes_detected <- Matrix::colSums(
+  counts[other_genes, , drop = FALSE] > 0
+)
+
+dash_metrics <- data.frame(
+  cell = colnames(counts),
+  condition = condition,
+  total_umis = as.numeric(total_counts),
+  mito_umis = as.numeric(mito_counts),
+  non_target_umis = as.numeric(other_counts),
+  non_target_genes = as.numeric(genes_detected)
+) |>
+  mutate(
+    mito_fraction = ifelse(
+      total_umis > 0, mito_umis / total_umis, NA_real_
+    ),
+    non_target_fraction = ifelse(
+      total_umis > 0, non_target_umis / total_umis, NA_real_
+    )
+  )
+
+dir.create(params$figure_dir, recursive = TRUE, showWarnings = FALSE)
+
+save_dash_plot <- function(plot, filename, width = 8, height = 5) {
+  for (extension in c("pdf", "png")) {
+    ggsave(
+      filename = file.path(
+        params$figure_dir, paste0(filename, ".", extension)
+      ),
+      plot = plot,
+      width = width,
+      height = height,
+      dpi = params$figure_dpi,
+      limitsize = FALSE
+    )
+  }
+}
+
+dash_colors <- c("Non-DASH" = "#64748B", "DASH" = "#0D9488")
+```
+
+### Figure A — Mitochondrial rRNA depletion
+
+```{r dash_figure_a, fig.width=10, fig.height=5}
+# Library-wide fraction: ratio of summed UMIs, not mean cell fraction.
+library_summary <- dash_metrics |>
+  group_by(condition) |>
+  summarise(
+    cells = n(),
+    total_umis = sum(total_umis),
+    mito_umis = sum(mito_umis),
+    non_target_umis = sum(non_target_umis),
+    mito_fraction = mito_umis / total_umis,
+    median_cell_mito_fraction = median(mito_fraction, na.rm = TRUE),
+    median_non_target_genes = median(non_target_genes),
+    .groups = "drop"
+  )
+
+print(library_summary)
+
+p_a1 <- ggplot(
+  dash_metrics,
+  aes(x = condition, y = 100 * mito_fraction, fill = condition)
+) +
+  geom_violin(trim = FALSE, alpha = 0.65) +
+  geom_boxplot(width = 0.16, outlier.shape = NA, fill = "white") +
+  scale_fill_manual(values = dash_colors) +
+  labs(
+    title = "Mitochondrial rRNA fraction per cell",
+    x = NULL,
+    y = "Target mitochondrial rRNA (% of UMIs)"
+  ) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+p_a2 <- ggplot(
+  library_summary,
+  aes(x = condition, y = 100 * mito_fraction, fill = condition)
+) +
+  geom_col(width = 0.6) +
+  geom_text(
+    aes(label = sprintf("%.2f%%", 100 * mito_fraction)),
+    vjust = -0.5
+  ) +
+  scale_fill_manual(values = dash_colors) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  labs(
+    title = "Library-wide mitochondrial rRNA fraction",
+    x = NULL,
+    y = "Target mitochondrial rRNA (% of UMIs)"
+  ) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+p_dash_a <- p_a1 + p_a2
+print(p_dash_a)
+
+save_dash_plot(p_dash_a, "DASH_A_mito_rRNA_depletion", 10, 5)
+```
+
+### Downsampling function for Figures B and D
+
+This samples UMIs without replacement from each cell's observed gene counts. It operates on the sparse matrix, so the full count matrix is not converted to dense form.
+
+```{r dash_rarefaction_helpers}
+# Return the number of detected non-target genes after sampling
+# a specified number of UMIs from one cell.
+#
+# When include_targets = TRUE, mitochondrial rRNA UMIs compete
+# with all other transcripts for the sequencing budget.
+#
+# When include_targets = FALSE, only non-target UMIs are sampled.
+
+downsample_detected_genes <- function(
+    gene_counts,
+    depth,
+    target_indices = integer(0),
+    include_targets = TRUE
+) {
+  gene_counts <- as.integer(gene_counts)
+
+  if (!include_targets && length(target_indices) > 0) {
+    gene_counts[target_indices] <- 0L
+  }
+
+  available <- sum(gene_counts)
+
+  if (available < depth || depth < 1) {
+    return(NA_integer_)
+  }
+
+  # For a sparse cell vector, expand only its nonzero counts.
+  expressed <- which(gene_counts > 0L)
+
+  umi_gene_ids <- rep.int(
+    expressed,
+    times = gene_counts[expressed]
+  )
+
+  sampled_gene_ids <- sample(
+    umi_gene_ids,
+    size = depth,
+    replace = FALSE
+  )
+
+  length(unique(
+    sampled_gene_ids[
+      !sampled_gene_ids %in% target_indices
+    ]
+  ))
+}
+
+# Use a reproducible, balanced subset of cells to limit runtime.
+# Increase cells_per_condition and n_repeats for final figures.
+
+cells_per_condition <- 300L
+n_repeats <- 5L
+
+selected_cells <- unlist(
+  lapply(levels(condition), function(group) {
+    eligible <- which(
+      condition == group &
+      dash_metrics$total_umis > 0
+    )
+
+    sample(
+      eligible,
+      size = min(length(eligible), cells_per_condition)
+    )
+  }),
+  use.names = FALSE
+)
+
+# Convert only the selected columns to compressed sparse format.
+counts_subset <- as(
+  counts[, selected_cells, drop = FALSE],
+  "dgCMatrix"
+)
+
+selected_condition <- condition[selected_cells]
+
+target_indices <- which(
+  rownames(counts_subset) %in% mito_genes
+)
+
+# Select depths supported by a reasonable number of cells
+# in both conditions. Adjust these values to your dataset.
+candidate_depths <- c(
+  250L, 500L, 1000L, 2000L, 3000L, 5000L, 7500L, 10000L
+)
+
+run_rarefaction <- function(
+    matrix,
+    groups,
+    depths,
+    target_indices,
+    include_targets = TRUE,
+    n_repeats = 5L
+) {
+  output <- vector("list", length = 0L)
+  k <- 0L
+
+  for (j in seq_len(ncol(matrix))) {
+    cell_counts <- as.integer(matrix[, j])
+
+    if (include_targets) {
+      available <- sum(cell_counts)
+    } else {
+      available <- sum(cell_counts[-target_indices])
+    }
+
+    valid_depths <- depths[depths <= available]
+
+    for (depth in valid_depths) {
+      for (replicate in seq_len(n_repeats)) {
+        k <- k + 1L
+
+        output[[k]] <- data.frame(
+          cell = colnames(matrix)[j],
+          condition = as.character(groups[j]),
+          depth = depth,
+          replicate = replicate,
+          detected_genes = downsample_detected_genes(
+            cell_counts,
+            depth,
+            target_indices,
+            include_targets
+          )
+        )
+      }
+    }
+  }
+
+  dplyr::bind_rows(output)
+}
+
+summarize_rarefaction <- function(x) {
+  # Average repeats within cells before calculating the
+  # group-level distribution.
+  x |>
+    group_by(condition, depth, cell) |>
+    summarise(
+      detected_genes = mean(detected_genes),
+      .groups = "drop"
+    ) |>
+    group_by(condition, depth) |>
+    summarise(
+      mean_genes = mean(detected_genes),
+      se = sd(detected_genes) / sqrt(n()),
+      n_cells = n(),
+      .groups = "drop"
+    )
+}
+```
+
+### Figure B — Gene detection at matched total UMI depth
+
+```{r dash_figure_b, fig.width=8, fig.height=5}
+rarefaction_total <- run_rarefaction(
+  matrix = counts_subset,
+  groups = selected_condition,
+  depths = candidate_depths,
+  target_indices = target_indices,
+  include_targets = TRUE,
+  n_repeats = n_repeats
+)
+
+summary_total <- summarize_rarefaction(rarefaction_total)
+
+p_dash_b <- ggplot(
+  summary_total,
+  aes(x = depth, y = mean_genes, color = condition, fill = condition)
+) +
+  geom_ribbon(
+    aes(
+      ymin = mean_genes - 1.96 * se,
+      ymax = mean_genes + 1.96 * se
+    ),
+    alpha = 0.15,
+    color = NA
+  ) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_color_manual(values = dash_colors) +
+  scale_fill_manual(values = dash_colors) +
+  labs(
+    title = "Non-target gene detection at matched total UMI depth",
+    subtitle = "Downsampling includes mitochondrial rRNA UMIs",
+    x = "Sampled total UMIs per cell",
+    y = "Mean non-target genes detected",
+    color = NULL,
+    fill = NULL
+  ) +
+  theme_classic()
+
+print(p_dash_b)
+
+save_dash_plot(
+  p_dash_b,
+  "DASH_B_total_UMI_rarefaction",
+  8, 5
+)
+```
+
+### Figure C — Detection of low-abundance genes
+
+For this analysis, genes are classified by their mean non-DASH expression. To avoid allowing differences in total sequencing depth to dominate the comparison, detection rates are calculated after downsampling to a common total UMI depth.
+
+The code uses the same selected cells as the rarefaction analysis
+
+```{r dash_figure_c, fig.width=9, fig.height=5}
+# Define baseline abundance using the non-DASH sample.
+control_cells <- which(condition == "Non-DASH")
+
+baseline_mean <- Matrix::rowMeans(
+  counts[other_genes, control_cells, drop = FALSE]
+)
+
+# Only classify genes observed at least once in non-DASH.
+# Genes completely absent from the reference are kept separate.
+observed_genes <- names(baseline_mean)[baseline_mean > 0]
+
+abundance_rank <- rank(
+  baseline_mean[observed_genes],
+  ties.method = "average"
+) / length(observed_genes)
+
+abundance_group <- cut(
+  abundance_rank,
+  breaks = c(0, 0.25, 0.50, 0.75, 1),
+  labels = c("Lowest", "Low", "Medium", "High"),
+  include.lowest = TRUE
+)
+
+names(abundance_group) <- observed_genes
+
+# Select a common depth at which both conditions retain cells.
+depth_c <- 1000L
+
+eligible_c <- which(
+  Matrix::colSums(counts_subset) >= depth_c
+)
+
+if (length(unique(selected_condition[eligible_c])) < 2) {
+  stop("Both conditions need cells with at least depth_c total UMIs.")
+}
+
+# Each column is a cell; each row is a gene.
+# Record whether a gene is detected after total-UMI downsampling.
+detection_results <- vector("list", length(eligible_c) * n_repeats)
+k <- 0L
+
+for (j in eligible_c) {
+  cell_counts <- as.integer(counts_subset[, j])
+  expressed <- which(cell_counts > 0L)
+
+  umi_gene_ids <- rep.int(
+    expressed,
+    times = cell_counts[expressed]
+  )
+
+  for (replicate in seq_len(n_repeats)) {
+    sampled <- unique(
+      sample(umi_gene_ids, depth_c, replace = FALSE)
+    )
+
+    detected_genes <- rownames(counts_subset)[sampled]
+    detected_genes <- intersect(detected_genes, observed_genes)
+
+    k <- k + 1L
+
+    detection_results[[k]] <- data.frame(
+      cell = colnames(counts_subset)[j],
+      condition = as.character(selected_condition[j]),
+      replicate = replicate,
+      abundance = as.character(
+        abundance_group[detected_genes]
+      )
+    )
+  }
+}
+
+detected_table <- dplyr::bind_rows(detection_results)
+
+# Each cell and repeat has the same number of eligible genes
+# in each abundance category.
+category_sizes <- table(abundance_group)
+
+detection_summary <- detected_table |>
+  count(cell, condition, replicate, abundance, name = "n_detected") |>
+  group_by(condition, abundance) |>
+  summarise(
+    mean_detected = mean(n_detected),
+    .groups = "drop"
+  ) |>
+  mutate(
+    n_genes = as.numeric(category_sizes[abundance]),
+    detection_rate = 100 * mean_detected / n_genes
+  )
+
+detection_summary$abundance <- factor(detection_summary$abundance, levels = c("Lowest", "Low", "Medium", "High"))
+
+# Include zero-detection cell/repeat/category combinations
+# before using this figure for final quantitative reporting.
+p_dash_c <- ggplot(
+  detection_summary,
+  aes(
+    x = abundance,
+    y = detection_rate,
+    fill = condition
+  )
+) +
+  geom_col(
+    position = position_dodge(width = 0.75),
+    width = 0.65
+  ) +
+  scale_fill_manual(values = dash_colors) +
+  labs(
+    title = "Detection by baseline gene abundance",
+    subtitle = paste(
+      "Genes classified using non-DASH expression;",
+      depth_c, "total UMIs per cell"
+    ),
+    x = "Baseline abundance category",
+    y = "Mean gene detection rate (%)",
+    fill = NULL
+  ) +
+#  scale_y_log10() +
+  theme_classic()
+
+print(p_dash_c)
+
+save_dash_plot(
+  p_dash_c,
+  "DASH_C_detection_by_abundance",
+  9, 5
+)
+```
+
+### Figure D - Gene detection at matched non-target UMI depth
+
+```{r dash_figure_d, fig.width=8, fig.height=5}
+rarefaction_non_target <- run_rarefaction(
+  matrix = counts_subset,
+  groups = selected_condition,
+  depths = candidate_depths,
+  target_indices = target_indices,
+  include_targets = FALSE,
+  n_repeats = n_repeats
+)
+
+summary_non_target <- summarize_rarefaction(
+  rarefaction_non_target
+)
+
+p_dash_d <- ggplot(
+  summary_non_target,
+  aes(x = depth, y = mean_genes, color = condition, fill = condition)
+) +
+  geom_ribbon(
+    aes(
+      ymin = mean_genes - 1.96 * se,
+      ymax = mean_genes + 1.96 * se
+    ),
+    alpha = 0.15,
+    color = NA
+  ) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_color_manual(values = dash_colors) +
+  scale_fill_manual(values = dash_colors) +
+  labs(
+    title = "Gene detection at matched non-target UMI depth",
+    subtitle = "Mitochondrial rRNA UMIs excluded before downsampling",
+    x = "Sampled non-target UMIs per cell",
+    y = "Mean non-target genes detected",
+    color = NULL,
+    fill = NULL
+  ) +
+  theme_classic()
+
+print(p_dash_d)
+
+save_dash_plot(
+  p_dash_d,
+  "DASH_D_non_target_UMI_rarefaction",
+  8, 5
+)
+```
+
+
+```{r publication_figure_summary}
+figures <- list.files(
+  params$figure_dir,
+  pattern="\\\\.(pdf|png)$",
+  full.names=TRUE
+)
+
+kable(data.frame(File=basename(figures),Path=figures),
+      caption="Publication-quality figures")
+```
+
+# Session information
+
+```{r session_info}
+sessionInfo()
+```

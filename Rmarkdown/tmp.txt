@@ -1,0 +1,44 @@
+.
+├── 00_2_CompareDASH_noDASH.Rmd
+├── 00_CreateSeuratFromCounts.Rmd
+├── 01_ComputeQCMetrics.Rmd
+├── 02_FilterPlotQCData.Rmd
+├── 02_IntegrateSeurat.Rmd
+├── 03_ComputeSCT.Rmd
+├── 04_IntegrateSeuratObjects.Rmd
+├── 05_ComputeModuleScores.Rmd
+├── 06_1_Export_M_lignano_Neural_to_H5AD.Rmd
+├── 06_2_Export_M_lignano_Digestive_System_to_H5AD.Rmd
+├── 06_3_Export_M_lignano_Cathepsin_to_H5AD.Rmd
+├── 06_4_Export_M_lignano_Musculature_to_H5AD.Rmd
+├── 06_4_Export_M_lignano_Reproductive_System_to_H5AD.Rmd
+├── 06_5_Export_M_lignano_Progenitor_System_to_H5AD.Rmd
+├── 06_6_Export_M_lignano_Epithelial_to_H5AD.Rmd
+├── 06_Export_M_lignano_to_H5AD.Rmd
+├── 07_1_Export_S_mediterranea_to_H5AD.Rmd
+├── 07_1_Subset_S_mediterranea_Intestine_to_H5AD.Rmd
+├── 07_2_Subset_S_mediterranea_Cathepsin_positive_cells_to_H5AD.Rmd
+├── 07_3_Subset_S_mediterranea_Epidermal_cells_to_H5AD.Rmd
+├── 07_4_Subset_S_mediterranea_Muscle_cells_to_H5AD.Rmd
+├── 07_5_Subset_S_mediterranea_Neural_cells_to_H5AD.Rmd
+├── 07_6_Subset_S_mediterranea_Neoblast_cells_to_H5AD.Rmd
+├── 07_PrepareReferenceAtlas_S_mediterranea.Rmd
+├── 08_1_Export_S_mansoni_to_H5AD.Rmd
+├── 08_1_SubsetReferenceAtlas_S_mansoni_Gut.Rmd
+├── 08_2_Subset_S_mansoni_Parenchyma_cells_to_H5AD.Rmd
+├── 08_3_Subset_S_mansoni_Tegument_cells_to_H5AD.Rmd
+├── 08_4_Subset_S_mansoni_muscle_cells_to_H5AD.Rmd
+├── 08_5_Subset_S_mansoni_neuron_cells_to_H5AD.Rmd
+├── 08_6_Subset_S_mansoni_neoblast_cells_to_H5AD.Rmd
+├── 08_7_Subset_S_mansoni_progeny_cells_to_H5AD.Rmd
+├── 08_8_Subset_S_mansoni_gut_cells_to_H5AD.Rmd
+├── 08_9_Subset_S_mansoni_flame_cells_to_H5AD.Rmd
+├── 08_PrepareReferenceAtlas_S_mansoni.Rmd
+├── 09_GO_enrichment_gut.Rmd
+├── Export_Gottgens_to_H5AD.Rmd
+├── Export_Liberali_to_H5AD.Rmd
+├── Export_Tyser_to_H5AD.Rmd
+├── Export_Yamaguchi_to_H5AD.Rmd
+└── tmp.txt
+
+0 directories, 41 files

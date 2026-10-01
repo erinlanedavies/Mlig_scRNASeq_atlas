@@ -27,6 +27,7 @@ gprofiler2
 topGO
 forcats
 
+bioc::EnhancedVolcano
 bioc::scater
 bioc::speckle
 bioc::topGO

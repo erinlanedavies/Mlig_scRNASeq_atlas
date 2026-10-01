@@ -11,6 +11,12 @@ renv::load(project = getwd())
 #  output_dir  = "../results/rmarkdown_reports"
 #)
 
+rmarkdown::render(
+  "Rmarkdown/00_2_CompareDASH_noDASH.Rmd",
+  output_file = "00_2_CompareDASH_noDASH.html",
+  output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
+)
+
 #rm(list=ls())
 #gc()
 
@@ -87,11 +93,11 @@ renv::load(project = getwd())
 #		      output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
 #  )
 
-rmarkdown::render(
-  "Rmarkdown/07_5_Subset_S_mediterranea_Neural_cells_to_H5AD.Rmd",
-  output_file = "07_5_Subset_S_mediterranea_Neural_cells_to_H5AD.h5ad",
-  output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
-)
+#rmarkdown::render(
+#  "Rmarkdown/07_5_Subset_S_mediterranea_Neural_cells_to_H5AD.Rmd",
+#  output_file = "07_5_Subset_S_mediterranea_Neural_cells_to_H5AD.h5ad",
+#  output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
+#)
 
 #rmarkdown::render(
 #  "Rmarkdown/08_9_Subset_S_mansoni_flame_cells_to_H5AD.Rmd",
@@ -142,5 +148,3 @@ rmarkdown::render(
 #  output_file = "08_PrepareReferenceAtlas_S_mansoni.html",
 #  output_dir  = "/data/Mlig_scRNA_Seq/Francisco/Mlig_scRNASeq_atlas/results/rmarkdown_reports"
 #)
-~
-
