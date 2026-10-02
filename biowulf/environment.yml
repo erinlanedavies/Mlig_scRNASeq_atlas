@@ -1,0 +1,12 @@
+name: mlig_scrna_runtime
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python=3.10
+  - anndata
+  - h5py
+  - numpy
+  - pandas
+  - scipy

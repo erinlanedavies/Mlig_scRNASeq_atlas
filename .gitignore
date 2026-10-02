@@ -26,6 +26,9 @@ Thumbs.db
 *.swp
 *.tmp
 
+# temp symlink created by run_r.sh
+renv/staging
+
 # Conda env artifacts/caches
 .venv/
 __pycache__/
