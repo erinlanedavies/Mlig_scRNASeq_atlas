@@ -44,6 +44,21 @@ export RENV_PATHS_LIBRARY_ROOT
 export RENV_PATHS_CACHE
 export XDG_CACHE_HOME
 
+# ------------------------------------------------------------------------------
+# Installation log
+# ------------------------------------------------------------------------------
+
+LOG_DIR="${PROJECT_ROOT}/logs"
+mkdir -p "$LOG_DIR"
+
+LOG_FILE="${LOG_DIR}/setup_$(date '+%Y%m%d_%H%M%S').log"
+
+# Send all subsequent stdout and stderr both to the terminal and to the log.
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+echo "Installation log:"
+echo "  $LOG_FILE"
+echo
 
 # ------------------------------------------------------------------------------
 # Introduction
