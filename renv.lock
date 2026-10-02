@@ -8717,25 +8717,23 @@
     },
     "presto": {
       "Package": "presto",
-      "Version": "1.0.0",
+      "Version": "1.1.0",
       "Source": "URL",
-      "Title": "Fast Functions for Differential Expression using Wilcox and AUC",
+      "Title": "Fast Functions for Differential Expression Using Wilcoxon and AUC",
       "Authors@R": "c( person(\"Ilya\", \"Korsunsky\", email = \"ilya.korsunsky@gmail.com\",  role = c(\"aut\"), comment = c(ORCID = \"0000-0003-4848-3948\")), person(\"Aparna\", \"Nathan\",  role = \"aut\"), person(\"Nghia\", \"Millard\",  role = \"aut\", comment = c(ORCID = \"0000-0002-0518-7674\")), person(\"Soumya\", \"Raychaudhuri\",  role = c(\"aut\"), comment = c(ORCID = \"0000-0002-1901-8265\")), person(\"Kamil\", \"Slowikowski\", email = \"kslowikowski@gmail.com\", role = c(\"cre\", \"ctb\"), comment = c(ORCID = \"0000-0002-2843-6370\")), person(\"Austin\", \"Hartman\", role = c(\"ctb\"), comment = c(ORCID = \"0000-0001-7278-1852\")) )",
-      "Description": "Scalable implementation of the Wilcoxon rank sum test and auROC statistic. Interfaces to dense and sparse matrices, as well as genomics analysis frameworks Seurat and SingleCellExperiment.",
+      "Description": "Scalable implementation of the Wilcoxon rank sum test and the area under the receiver operating characteristic curve (also known as auROC or AUC) statistic. Interfaces to dense and sparse matrices, as well as the genomics analysis frameworks 'Seurat' and 'SingleCellExperiment'.",
       "License": "GPL-3",
-      "LazyData": "true",
       "Encoding": "UTF-8",
       "Depends": [
-        "R (>= 3.4.0)",
-        "Rcpp",
-        "data.table"
+        "R (>= 3.5.0)"
       ],
       "LinkingTo": [
         "Rcpp",
         "RcppArmadillo"
       ],
-      "biocViews": "",
       "Imports": [
+        "Rcpp",
+        "data.table",
         "dplyr",
         "methods",
         "tidyr",
@@ -8746,7 +8744,8 @@
         "stats",
         "utils"
       ],
-      "RoxygenNote": "7.2.1",
+      "Roxygen": "list(markdown = TRUE)",
+      "RoxygenNote": "7.3.3",
       "Suggests": [
         "knitr",
         "rmarkdown",
@@ -8754,6 +8753,7 @@
         "Seurat",
         "SingleCellExperiment",
         "SummarizedExperiment",
+        "DelayedArray",
         "broom",
         "BiocStyle",
         "DESeq2"
@@ -8763,7 +8763,7 @@
       "Author": "Ilya Korsunsky [aut] (ORCID: <https://orcid.org/0000-0003-4848-3948>), Aparna Nathan [aut], Nghia Millard [aut] (ORCID: <https://orcid.org/0000-0002-0518-7674>), Soumya Raychaudhuri [aut] (ORCID: <https://orcid.org/0000-0002-1901-8265>), Kamil Slowikowski [cre, ctb] (ORCID: <https://orcid.org/0000-0002-2843-6370>), Austin Hartman [ctb] (ORCID: <https://orcid.org/0000-0001-7278-1852>)",
       "Maintainer": "Kamil Slowikowski <kslowikowski@gmail.com>",
       "RemoteType": "url",
-      "RemoteUrl": "https://github.com/immunogenomics/presto/archive/7636b3d0465c468c35853f82f1717d3a64b3c8f6.tar.gz"
+      "RemoteUrl": "https://github.com/immunogenomics/presto/archive/b5df6ee6097eb62522f2e557aa93ac21bab2d05f.tar.gz"
     },
     "prettyunits": {
       "Package": "prettyunits",
