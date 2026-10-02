@@ -9,7 +9,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-ENV_PREFIX="/data/${USER}/conda_envs/mlig_scrna_runtime"
+ENV_PREFIX="${ENV_PREFIX:-/data/${USER}/conda_envs/mlig_scrna_runtime}"
 LOCK_FILE="${PROJECT_ROOT}/biowulf/conda-linux-64.lock.txt"
 
 if [ ! -f "${LOCK_FILE}" ]; then
