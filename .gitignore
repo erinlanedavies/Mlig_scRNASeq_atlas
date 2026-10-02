@@ -37,3 +37,6 @@ __pycache__/
 # Rmarkdown output files
 *.html
 results/rmarkdown_reports/*.html
+
+# Environment installation logs
+logs/setup_*.log
