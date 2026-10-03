@@ -1,0 +1,13 @@
+name: mlig_samap
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python=3.12
+  - pip
+  - ipykernel
+
+  - pip:
+      - sc-samap[viz]==3.0.1
+      - samap-extension==0.1.1
