@@ -67,19 +67,72 @@ renv::restore(
 # Validate
 # ------------------------------------------------------------------------------
 
-cat("\n=== Checking renv status ===\n\n")
+cat("\n=== Validating restored R environment ===\n\n")
 
-status <- renv::status(
-  project = project_root
+lock <- renv::lockfile_read(lockfile)
+
+locked <- vapply(
+    lock$Packages,
+    function(pkg) pkg$Version,
+    character(1)
 )
 
-if (!status$synchronized) {
-  stop(
-    "\nrenv restore completed, but the project is not synchronized ",
-    "with renv.lock."
-  )
+installed <- installed.packages()
+installed_versions <- installed[, "Version"]
+
+missing <- setdiff(names(locked), names(installed_versions))
+
+common <- intersect(names(locked), names(installed_versions))
+
+wrong_version <- common[
+    installed_versions[common] != locked[common]
+]
+
+if (length(missing)) {
+    cat("\nMissing locked packages:\n")
+    print(missing)
 }
 
+if (length(wrong_version)) {
+    cat("\nPackages with incorrect versions:\n")
+
+    for (pkg in wrong_version) {
+        cat(
+            sprintf(
+                "  %-25s installed: %-15s expected: %s\n",
+                pkg,
+                installed_versions[[pkg]],
+                locked[[pkg]]
+            )
+        )
+    }
+}
+
+if (length(missing) || length(wrong_version)) {
+    stop(
+        "\nR environment restoration failed validation: ",
+        "the installed library does not satisfy renv.lock."
+    )
+}
+
+extra <- setdiff(names(installed_versions), names(locked))
+
+if (length(extra)) {
+    cat(
+        "\nNote: additional packages were installed during dependency ",
+        "resolution:\n"
+    )
+    cat("  ", paste(extra, collapse = ", "), "\n", sep = "")
+}
+
+cat(
+    "\nAll packages recorded in renv.lock are installed ",
+    "at the expected versions.\n"
+)
+
+cat("\n============================================================\n")
+cat("R environment restored successfully.\n")
+cat("============================================================\n")
 
 # ------------------------------------------------------------------------------
 # Finished

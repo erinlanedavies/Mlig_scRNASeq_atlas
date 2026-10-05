@@ -29,6 +29,38 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
+# ------------------------------------------------------------------------------
+# Remove inherited Conda environment
+# ------------------------------------------------------------------------------
+
+# R packages must be compiled against the Biowulf/system native libraries,
+# not libraries from an interactive Conda environment. In particular, an
+# auto-activated Conda base environment can place its xml2-config on PATH,
+# causing packages such as igraph to link against Conda's libxml2/ICU stack.
+
+if [[ -n "${CONDA_PREFIX:-}" ]]; then
+
+    echo "Detected active Conda environment:"
+    echo "  ${CONDA_PREFIX}"
+    echo
+    echo "Removing inherited Conda environment from the build environment."
+
+    # Remove the active Conda environment's bin directory from PATH.
+    PATH="$(
+        printf '%s\n' "$PATH" |
+        tr ':' '\n' |
+        grep -v "^${CONDA_PREFIX}/bin$" |
+        paste -sd:
+    )"
+
+    export PATH
+
+    unset CONDA_PREFIX
+    unset CONDA_DEFAULT_ENV
+    unset CONDA_PROMPT_MODIFIER
+    unset CONDA_SHLVL
+
+fi
 
 # ------------------------------------------------------------------------------
 # Environment locations
@@ -156,6 +188,30 @@ if ! pkg-config --exists libwebpmux; then
     exit 1
 fi
 
+XML2_CONFIG_BIN="$(command -v xml2-config || true)"
+
+if [[ "$XML2_CONFIG_BIN" != "/usr/bin/xml2-config" ]]; then
+    echo "ERROR: Expected /usr/bin/xml2-config but found:" >&2
+    echo "  ${XML2_CONFIG_BIN:-not found}" >&2
+    echo >&2
+    echo "A non-system xml2-config can cause R packages to link against" >&2
+    echo "incompatible libxml2/ICU libraries." >&2
+    exit 1
+fi
+
+LIBXML2_PREFIX="$(pkg-config --variable=prefix libxml-2.0)"
+
+if [[ "$LIBXML2_PREFIX" != "/usr" ]]; then
+    echo "ERROR: Expected system libxml2 prefix /usr but found:" >&2
+    echo "  $LIBXML2_PREFIX" >&2
+    exit 1
+fi
+
+if command -v xml2-config | grep -qiE 'conda|miniforge|miniconda|anaconda'; then
+    echo "ERROR: xml2-config is still resolving through a Conda installation:" >&2
+    command -v xml2-config >&2
+    exit 1
+fi
 
 # ------------------------------------------------------------------------------
 # Cache directories

@@ -1778,6 +1778,32 @@
       "Maintainer": "Dirk Eddelbuettel <edd@debian.org>",
       "Repository": "CRAN"
     },
+    "RcppThread": {
+      "Package": "RcppThread",
+      "Version": "2.4.0",
+      "Source": "Repository",
+      "Title": "R-Friendly Threading in C++",
+      "Authors@R": "c( person(\"Thomas\", \"Nagler\",, \"mail@tnagler.com\", role = c(\"aut\", \"cre\"), comment = c(ORCID = \"0000-0003-1855-0046\")) )",
+      "Description": "Provides a C++11-style thread class and thread pool that can safely be interrupted from R. See Nagler (2021) <doi:10.18637/jss.v097.c01>.",
+      "Depends": [
+        "R (>= 3.3.0)"
+      ],
+      "License": "MIT + file LICENSE",
+      "Encoding": "UTF-8",
+      "URL": "https://github.com/tnagler/RcppThread",
+      "BugReports": "https://github.com/tnagler/RcppThread/issues",
+      "Suggests": [
+        "testthat",
+        "R.rsp",
+        "Rcpp"
+      ],
+      "VignetteBuilder": "R.rsp",
+      "Config/roxygen2/version": "8.0.0",
+      "NeedsCompilation": "yes",
+      "Author": "Thomas Nagler [aut, cre] (ORCID: <https://orcid.org/0000-0003-1855-0046>)",
+      "Maintainer": "Thomas Nagler <mail@tnagler.com>",
+      "Repository": "CRAN"
+    },
     "Rhdf5lib": {
       "Package": "Rhdf5lib",
       "Version": "1.32.0",
