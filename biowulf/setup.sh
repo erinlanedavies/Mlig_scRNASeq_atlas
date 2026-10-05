@@ -84,7 +84,7 @@ echo
 
 
 # ------------------------------------------------------------------------------
-# Python environment
+# reticulate Python environment
 # ------------------------------------------------------------------------------
 
 echo "=== Setting up Python environment ==="
@@ -99,7 +99,7 @@ if [[ -x "${ENV_PREFIX}/bin/python" ]]; then
 
 else
 
-    ./biowulf/setup_conda.sh
+    ./environments/reticulate/setup.sh
 
 fi
 
