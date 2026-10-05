@@ -1,4 +1,4 @@
-# Biowulf installation and reproducibility
+# R Environment Setup on NIH Biowulf
 
 ## Purpose
 
