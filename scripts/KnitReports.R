@@ -1,9 +1,9 @@
 ## knit Rmarkdown documents
 
-setwd("~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/")
+#setwd("~/Projects/Erin/M_lignano/Mlig_scRNASeq_atlas/")
 
-if (file.exists(".Rprofile")) source(".Rprofile")
-renv::load(project = getwd())
+#if (file.exists(".Rprofile")) source(".Rprofile")
+#renv::load(project = getwd())
 
 #rmarkdown::render(
 #  "00_CreateSeuratFromCounts.Rmd",
